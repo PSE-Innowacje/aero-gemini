@@ -36,6 +36,7 @@ def _create_planned_operation(client, token: str, authz, project_code: str, coor
                 "type": "LineString",
                 "coordinates": coordinates,
             },
+            "activities": ["ogledziny_wizualne"],
         },
     )
     assert response.status_code == 200

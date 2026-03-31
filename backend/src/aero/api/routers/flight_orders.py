@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from aero.api.deps import require_roles
 from aero.core.database import get_db
-from aero.models.enums import UserRole
+from aero.models.enums import UserRole, WorkflowStatus
 from aero.models.flight_order import FlightOrder
 from aero.repositories.base import BaseRepository
 from aero.schemas.flight_order import (
@@ -30,6 +30,12 @@ from aero.services.flight_orders import (
 )
 
 router = APIRouter()
+
+
+def _mark_operations_as_scheduled(planned_operations: list) -> None:
+    for operation in planned_operations:
+        if operation.status == WorkflowStatus.APPROVED:
+            operation.status = WorkflowStatus.SCHEDULED
 
 
 def _to_read(order: FlightOrder) -> FlightOrderRead:
@@ -180,12 +186,14 @@ def create_flight_order(
             "crew_weight": crew_weight,
         }
     )
+    planned_operations = cast(list, get_planned_operations(db, payload.planned_operation_ids or []))
+    _mark_operations_as_scheduled(planned_operations)
     assign_relationships(
         order=order,
         pilot=pilot,
         helicopter=helicopter,
         crew=crew,
-        planned_operations=cast(list, get_planned_operations(db, payload.planned_operation_ids or [])),
+        planned_operations=planned_operations,
     )
     db.commit()
     db.refresh(order)
@@ -263,6 +271,7 @@ def update_flight_order(
     order = repo.update(order, data)
     if payload.planned_operation_ids is not None:
         order.planned_operations = get_planned_operations(db, payload.planned_operation_ids)
+        _mark_operations_as_scheduled(order.planned_operations)
         db.commit()
         db.refresh(order)
     logger.bind(event="flight_order_api", action="update", order_id=order.id).info("flight_order_update_completed")

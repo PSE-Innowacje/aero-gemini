@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Column, Date, Enum, Float, ForeignKey, Integer, JSON, String, Table, Text
+from sqlalchemy import Column, Date, Enum, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aero.core.database import Base
@@ -28,8 +28,8 @@ class PlannedOperation(TimestampedModel):
     __tablename__ = "planned_operations"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    project_code: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    short_description: Mapped[str] = mapped_column(String(500), nullable=False)
+    project_code: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    short_description: Mapped[str] = mapped_column(String(100), nullable=False)
     route_geometry: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     route_bbox: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
     points_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -37,12 +37,13 @@ class PlannedOperation(TimestampedModel):
     proposed_date_to: Mapped[date | None] = mapped_column(Date, nullable=True)
     planned_date_from: Mapped[date | None] = mapped_column(Date, nullable=True)
     planned_date_to: Mapped[date | None] = mapped_column(Date, nullable=True)
-    activities: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    activities: Mapped[list[str]] = mapped_column(JSON, default=list)
     extra_info: Mapped[str | None] = mapped_column(Text, nullable=True)
-    distance_km: Mapped[float] = mapped_column(Float, default=0.0)
+    distance_km: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[WorkflowStatus] = mapped_column(Enum(WorkflowStatus), default=WorkflowStatus.DRAFT)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     contacts: Mapped[list[str]] = mapped_column(JSON, default=list)
+    comment_entries: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
     post_realization_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     creator: Mapped[User] = relationship(back_populates="planned_operations_created")

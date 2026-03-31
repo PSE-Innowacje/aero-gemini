@@ -25,7 +25,7 @@ def _create_operation(client, token: str, authz, project_code: str = "PRJ-T1") -
             },
             "proposed_date_from": str(date.today() + timedelta(days=1)),
             "proposed_date_to": str(date.today() + timedelta(days=2)),
-            "activities": [{"name": "survey"}],
+            "activities": ["ogledziny_wizualne"],
             "contacts": ["ops@example.com"],
         },
     )
@@ -67,7 +67,7 @@ def test_create_planned_operation_with_kml_upload(client, planner_token, authz) 
             "short_description": "Operation created from KML upload",
             "proposed_date_from": str(date.today() + timedelta(days=1)),
             "proposed_date_to": str(date.today() + timedelta(days=2)),
-            "activities": [{"name": "survey"}],
+            "activities": ["ogledziny_wizualne"],
             "contacts": ["ops@example.com"],
         }
     )
@@ -100,7 +100,7 @@ def test_status_transition_requires_supervisor_role(client, planner_token, authz
         json={"status": 2},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "Supervisor role required"
+    assert response.json()["detail"] == "Planner cannot perform this status transition"
 
 
 def test_status_transition_valid_for_supervisor(client, planner_token, supervisor_token, authz) -> None:

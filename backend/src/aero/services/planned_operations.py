@@ -16,9 +16,29 @@ from aero.models.user import User
 from geopy.distance import geodesic
 
 ALLOWED_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
-    WorkflowStatus.DRAFT: {WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED},
-    WorkflowStatus.APPROVED: {WorkflowStatus.SCHEDULED},
-    WorkflowStatus.SCHEDULED: {WorkflowStatus.IN_PROGRESS, WorkflowStatus.DONE, WorkflowStatus.APPROVED},
+    WorkflowStatus.DRAFT: {WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED, WorkflowStatus.REJECTED},
+    WorkflowStatus.APPROVED: {WorkflowStatus.SCHEDULED, WorkflowStatus.REJECTED},
+    WorkflowStatus.SCHEDULED: {
+        WorkflowStatus.APPROVED,
+        WorkflowStatus.IN_PROGRESS,
+        WorkflowStatus.DONE,
+        WorkflowStatus.REJECTED,
+    },
+}
+
+PLANNER_EDITABLE_STATUSES: set[WorkflowStatus] = {
+    WorkflowStatus.DRAFT,
+    WorkflowStatus.SUBMITTED,
+    WorkflowStatus.APPROVED,
+    WorkflowStatus.SCHEDULED,
+    WorkflowStatus.IN_PROGRESS,
+}
+MAX_ROUTE_POINTS = 5000
+POLAND_BOUNDS = {
+    "min_lon": 14.0,
+    "max_lon": 24.5,
+    "min_lat": 49.0,
+    "max_lat": 54.9,
 }
 
 
@@ -31,10 +51,10 @@ def _to_geopy_points(coords: list[LonLat]) -> list[LatLon]:
     return [(lat, lon) for lon, lat in coords]
 
 
-def _distance_km(coords: list[LonLat]) -> float:
+def _distance_km(coords: list[LonLat]) -> int:
     geopy_points = _to_geopy_points(coords)
     total = sum(geodesic(start, end).kilometers for start, end in pairwise(geopy_points))
-    return round(total, 2)
+    return int(round(total))
 
 
 def _iter_features(node: object) -> Iterable[object]:
@@ -74,12 +94,25 @@ def _iter_geometry_coords(geometry: object) -> Iterable[LonLat]:
 def _validate_route_coordinates(coords: list[LonLat]) -> None:
     if len(coords) < 2:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Route must contain at least 2 points")
+    if len(coords) > MAX_ROUTE_POINTS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Route can contain up to {MAX_ROUTE_POINTS} points",
+        )
 
     for lon, lat in coords:
         if not (-180.0 <= lon <= 180.0 and -90.0 <= lat <= 90.0):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Route contains invalid coordinates",
+            )
+        if not (
+            POLAND_BOUNDS["min_lon"] <= lon <= POLAND_BOUNDS["max_lon"]
+            and POLAND_BOUNDS["min_lat"] <= lat <= POLAND_BOUNDS["max_lat"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Route points must be within Poland",
             )
 
 
@@ -199,7 +232,12 @@ def normalize_route(
         "user_role": args["user"].role.value,
     },
 )
-def enforce_status_transition(current: WorkflowStatus, new: WorkflowStatus, user: User) -> None:
+def enforce_status_transition(
+    current: WorkflowStatus,
+    new: WorkflowStatus,
+    user: User,
+    operation: PlannedOperation,
+) -> None:
     transition_logger = logger.bind(
         event="workflow_transition",
         current_status=current.value,
@@ -215,11 +253,31 @@ def enforce_status_transition(current: WorkflowStatus, new: WorkflowStatus, user
     if new not in allowed:
         transition_logger.warning("transition_check_failed_invalid_transition")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status transition")
-
-    if current == WorkflowStatus.DRAFT and new in {WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED}:
-        if user.role not in {UserRole.SUPERVISOR, UserRole.ADMIN}:
-            transition_logger.warning("transition_check_failed_forbidden_role")
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Supervisor role required")
+    if user.role in {UserRole.SUPERVISOR, UserRole.ADMIN}:
+        if current == WorkflowStatus.DRAFT and new == WorkflowStatus.APPROVED:
+            if not operation.planned_date_from or not operation.planned_date_to:
+                transition_logger.warning("transition_check_failed_missing_planned_dates")
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="planned_date_from and planned_date_to are required for confirmation",
+                )
+        return
+    if user.role == UserRole.PLANNER:
+        if current in {WorkflowStatus.DRAFT, WorkflowStatus.APPROVED, WorkflowStatus.SCHEDULED} and new == WorkflowStatus.REJECTED:
+            return
+        transition_logger.warning("transition_check_failed_forbidden_role")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Planner cannot perform this status transition")
+    if user.role == UserRole.PILOT:
+        if current == WorkflowStatus.SCHEDULED and new in {
+            WorkflowStatus.APPROVED,
+            WorkflowStatus.IN_PROGRESS,
+            WorkflowStatus.DONE,
+        }:
+            return
+        transition_logger.warning("transition_check_failed_forbidden_role")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pilot cannot perform this status transition")
+    transition_logger.warning("transition_check_failed_forbidden_role")
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden for current role")
 
 
 def add_audit(
@@ -257,9 +315,12 @@ def validate_edit_window(operation: PlannedOperation, user: User) -> None:
         user_id=user.id,
         user_role=user.role.value,
     )
-    if operation.status in {WorkflowStatus.DONE, WorkflowStatus.REJECTED} and user.role != UserRole.ADMIN:
-        edit_window_logger.warning("edit_window_rejected")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only ADMIN can edit finalized operation")
+    if user.role in {UserRole.SUPERVISOR, UserRole.ADMIN}:
+        return
+    if user.role == UserRole.PLANNER and operation.status in PLANNER_EDITABLE_STATUSES:
+        return
+    edit_window_logger.warning("edit_window_rejected")
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Edit forbidden for current role or status")
 
 
 def today() -> date:

@@ -42,13 +42,15 @@ export interface LandingSite {
   status?: 'active' | 'inactive';
 }
 
-export type OperationStatus = 1 | 2 | 3 | 4 | 5;
+export type OperationStatus = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export const operationStatusLabels: Record<OperationStatus, string> = {
-  1: 'Draft',
-  2: 'Submitted',
-  3: 'Approved',
-  4: 'In Progress',
-  5: 'Completed',
+  1: 'Wprowadzone',
+  2: 'Odrzucone',
+  3: 'Potwierdzone do planu',
+  4: 'Zaplanowane do zlecenia',
+  5: 'Czesciowo zrealizowane',
+  6: 'Zrealizowane',
+  7: 'Rezygnacja',
 };
 
 /** GeoJSON LineString from API (coordinates are [longitude, latitude]). */
@@ -61,11 +63,28 @@ export interface PlannedOperation {
   id: string;
   projectCode: string;
   activities: string[];
-  startDate: string;
-  endDate: string;
+  proposedDateFrom: string;
+  proposedDateTo: string;
+  plannedDateFrom: string;
+  plannedDateTo: string;
   status: OperationStatus;
-  description: string;
-  kmlData?: string;
+  shortDescription: string;
+  extraInfo: string;
+  distanceKm: number;
+  pointsCount: number;
+  createdBy: string;
+  createdByEmail: string;
+  contacts: string[];
+  postRealizationNotes: string;
+  comments: { content: string; createdAt: string; authorEmail: string }[];
+  history: {
+    changedAt: string;
+    actorEmail: string;
+    action: string;
+    beforeSnapshot?: Record<string, unknown> | null;
+    afterSnapshot?: Record<string, unknown> | null;
+  }[];
+  linkedFlightOrderIds: string[];
   routeGeometry?: OperationRouteGeometry | null;
 }
 

@@ -15,6 +15,32 @@ const API_BASE_URL =
   'http://localhost:8000/api';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+type LegacyActivityItem = string | { name?: unknown } | null | undefined;
+
+const operationActivityAliases: Record<string, string> = {
+  ogledziny_wizualne: 'ogledziny_wizualne',
+  'oględziny wizualne': 'ogledziny_wizualne',
+  ogledzinywizualne: 'ogledziny_wizualne',
+  skan_3d: 'skan_3d',
+  'skan 3d': 'skan_3d',
+  skan3d: 'skan_3d',
+  lokalizacja_awarii: 'lokalizacja_awarii',
+  'lokalizacja awarii': 'lokalizacja_awarii',
+  zdjecia: 'zdjecia',
+  zdjęcia: 'zdjecia',
+  patrolowanie: 'patrolowanie',
+};
+
+const normalizeOperationActivity = (value: LegacyActivityItem): string | null => {
+  const rawValue = typeof value === 'object' && value !== null && 'name' in value
+    ? value.name
+    : value;
+  if (typeof rawValue !== 'string') return null;
+  const trimmed = rawValue.trim();
+  if (!trimmed) return null;
+  const normalizedKey = trimmed.toLowerCase();
+  return operationActivityAliases[normalizedKey] ?? normalizedKey;
+};
 
 const withAuthHeaders = (): HeadersInit => {
   const token = getApiToken();
@@ -150,11 +176,41 @@ const toUiSite = (s: any): LandingSite => ({
 const toUiOperation = (o: any): PlannedOperation => ({
   id: String(o.id),
   projectCode: o.project_code,
-  activities: Array.isArray(o.activities) ? o.activities.map((v: any) => String(v?.name ?? v)) : [],
-  startDate: o.planned_date_from ?? o.proposed_date_from ?? '',
-  endDate: o.planned_date_to ?? o.proposed_date_to ?? '',
+  activities: Array.isArray(o.activities)
+    ? o.activities
+        .map((value: LegacyActivityItem) => normalizeOperationActivity(value))
+        .filter((value: string | null): value is string => value !== null)
+    : [],
+  proposedDateFrom: o.proposed_date_from ?? '',
+  proposedDateTo: o.proposed_date_to ?? '',
+  plannedDateFrom: o.planned_date_from ?? '',
+  plannedDateTo: o.planned_date_to ?? '',
   status: o.status,
-  description: o.short_description,
+  shortDescription: o.short_description ?? '',
+  extraInfo: o.extra_info ?? '',
+  distanceKm: Number(o.distance_km ?? 0),
+  pointsCount: Number(o.points_count ?? 0),
+  createdBy: String(o.created_by ?? ''),
+  createdByEmail: String(o.created_by_email ?? ''),
+  contacts: Array.isArray(o.contacts) ? o.contacts.map(String) : [],
+  postRealizationNotes: o.post_realization_notes ?? '',
+  comments: Array.isArray(o.comments)
+    ? o.comments.map((item: any) => ({
+        content: String(item?.content ?? ''),
+        createdAt: String(item?.created_at ?? ''),
+        authorEmail: String(item?.author_email ?? ''),
+      }))
+    : [],
+  history: Array.isArray(o.history)
+    ? o.history.map((item: any) => ({
+        changedAt: String(item?.changed_at ?? ''),
+        actorEmail: String(item?.actor_email ?? ''),
+        action: String(item?.action ?? ''),
+        beforeSnapshot: item?.before_snapshot ?? null,
+        afterSnapshot: item?.after_snapshot ?? null,
+      }))
+    : [],
+  linkedFlightOrderIds: Array.isArray(o.linked_flight_order_ids) ? o.linked_flight_order_ids.map((id: any) => String(id)) : [],
   routeGeometry: o.route_geometry && o.route_geometry.type === 'LineString' && Array.isArray(o.route_geometry.coordinates)
     ? { type: 'LineString', coordinates: o.route_geometry.coordinates as [number, number][] }
     : null,
@@ -327,50 +383,85 @@ export const updateLandingSite = async (id: string, data: Partial<LandingSite>):
 
 // Planned Operations
 export const fetchOperations = async (): Promise<PlannedOperation[]> => (await request<any[]>('/planned-operations')).map(toUiOperation);
-export const createOperation = async (data: Omit<PlannedOperation, 'id'>): Promise<PlannedOperation> => {
+type PlannedOperationCreateInput = {
+  projectCode: string;
+  shortDescription: string;
+  proposedDateFrom?: string;
+  proposedDateTo?: string;
+  plannedDateFrom?: string;
+  plannedDateTo?: string;
+  activities: string[];
+  extraInfo?: string;
+  contacts?: string[];
+};
+
+type PlannedOperationUpdateInput = Partial<PlannedOperationCreateInput> & {
+  postRealizationNotes?: string;
+  comment?: string;
+  status?: number;
+};
+
+export const createOperation = async (data: PlannedOperationCreateInput): Promise<PlannedOperation> => {
+  const activities = data.activities
+    .map((value) => normalizeOperationActivity(value))
+    .filter((value): value is string => value !== null);
   const payload = {
     project_code: data.projectCode,
-    short_description: data.description,
-    proposed_date_from: data.startDate || null,
-    proposed_date_to: data.endDate || null,
-    planned_date_from: data.startDate || null,
-    planned_date_to: data.endDate || null,
-    activities: data.activities.map((name) => ({ name })),
-    extra_info: null,
-    contacts: [],
+    short_description: data.shortDescription,
+    proposed_date_from: data.proposedDateFrom || null,
+    proposed_date_to: data.proposedDateTo || null,
+    planned_date_from: data.plannedDateFrom || null,
+    planned_date_to: data.plannedDateTo || null,
+    activities,
+    extra_info: data.extraInfo || null,
+    contacts: data.contacts ?? [],
   };
   return toUiOperation(await request('/planned-operations', 'POST', payload));
 };
 export const createOperationFromKml = async (
-  data: Omit<PlannedOperation, 'id'>,
+  data: PlannedOperationCreateInput,
   file: File
 ): Promise<PlannedOperation> => {
+  const activities = data.activities
+    .map((value) => normalizeOperationActivity(value))
+    .filter((value): value is string => value !== null);
   const payload = {
     project_code: data.projectCode,
-    short_description: data.description,
-    proposed_date_from: data.startDate || null,
-    proposed_date_to: data.endDate || null,
-    planned_date_from: data.startDate || null,
-    planned_date_to: data.endDate || null,
-    activities: data.activities.map((name) => ({ name })),
-    extra_info: null,
-    contacts: [],
+    short_description: data.shortDescription,
+    proposed_date_from: data.proposedDateFrom || null,
+    proposed_date_to: data.proposedDateTo || null,
+    planned_date_from: data.plannedDateFrom || null,
+    planned_date_to: data.plannedDateTo || null,
+    activities,
+    extra_info: data.extraInfo || null,
+    contacts: data.contacts ?? [],
   };
   const formData = new FormData();
   formData.append('payload_json', JSON.stringify(payload));
   formData.append('kml_file', file);
   return toUiOperation(await requestMultipart('/planned-operations/upload-kml', formData));
 };
-export const updateOperation = async (id: string, data: Partial<PlannedOperation>): Promise<PlannedOperation> => {
+export const updateOperation = async (id: string, data: PlannedOperationUpdateInput): Promise<PlannedOperation> => {
   if (data.status !== undefined && Object.keys(data).length === 1) {
     return toUiOperation(await request(`/planned-operations/${id}/status`, 'POST', { status: data.status }));
   }
   const payload: Record<string, unknown> = {};
-  if (data.projectCode !== undefined) payload.project_code = data.projectCode;
-  if (data.description !== undefined) payload.short_description = data.description;
-  if (data.startDate !== undefined) payload.planned_date_from = data.startDate;
-  if (data.endDate !== undefined) payload.planned_date_to = data.endDate;
-  if (data.activities !== undefined) payload.activities = data.activities.map((name) => ({ name }));
+  const typed = data as PlannedOperationUpdateInput;
+  if (typed.projectCode !== undefined) payload.project_code = typed.projectCode;
+  if (typed.shortDescription !== undefined) payload.short_description = typed.shortDescription;
+  if (typed.proposedDateFrom !== undefined) payload.proposed_date_from = typed.proposedDateFrom || null;
+  if (typed.proposedDateTo !== undefined) payload.proposed_date_to = typed.proposedDateTo || null;
+  if (typed.plannedDateFrom !== undefined) payload.planned_date_from = typed.plannedDateFrom || null;
+  if (typed.plannedDateTo !== undefined) payload.planned_date_to = typed.plannedDateTo || null;
+  if (typed.activities !== undefined) {
+    payload.activities = typed.activities
+      .map((value) => normalizeOperationActivity(value))
+      .filter((value): value is string => value !== null);
+  }
+  if (typed.extraInfo !== undefined) payload.extra_info = typed.extraInfo || null;
+  if (typed.contacts !== undefined) payload.contacts = typed.contacts;
+  if (typed.postRealizationNotes !== undefined) payload.post_realization_notes = typed.postRealizationNotes || null;
+  if (typed.comment !== undefined) payload.comment = typed.comment || null;
   return toUiOperation(await request(`/planned-operations/${id}`, 'PATCH', payload));
 };
 
