@@ -221,6 +221,14 @@ export const createUser = async (data: {
   password: string;
   role: Role;
 }): Promise<User> => {
+  const MAX_USER_FIELD_LENGTH = 100;
+  if (
+    data.firstName.length > MAX_USER_FIELD_LENGTH ||
+    data.lastName.length > MAX_USER_FIELD_LENGTH ||
+    data.email.length > MAX_USER_FIELD_LENGTH
+  ) {
+    throw new Error(`Imię, nazwisko i e-mail mogą mieć maksymalnie ${MAX_USER_FIELD_LENGTH} znaków.`);
+  }
   const created = await request<any>('/users', 'POST', {
     first_name: data.firstName,
     last_name: data.lastName,

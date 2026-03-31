@@ -27,6 +27,10 @@ const UsersPage: React.FC = () => {
     password: '',
     role: 'PLANNER' as Role,
   });
+  const isFirstNameTooLong = form.firstName.length > USER_FIELD_MAX_LENGTH;
+  const isLastNameTooLong = form.lastName.length > USER_FIELD_MAX_LENGTH;
+  const isEmailTooLong = form.email.length > USER_FIELD_MAX_LENGTH;
+  const isUserLengthInvalid = isFirstNameTooLong || isLastNameTooLong || isEmailTooLong;
 
   const createMut = useMutation({
     mutationFn: createUser,
@@ -54,11 +58,7 @@ const UsersPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      form.firstName.length > USER_FIELD_MAX_LENGTH ||
-      form.lastName.length > USER_FIELD_MAX_LENGTH ||
-      form.email.length > USER_FIELD_MAX_LENGTH
-    ) {
+    if (isUserLengthInvalid) {
       toast({
         title: 'Błąd walidacji',
         description: `Imię, nazwisko i e-mail mogą mieć maksymalnie ${USER_FIELD_MAX_LENGTH} znaków.`,
@@ -68,8 +68,6 @@ const UsersPage: React.FC = () => {
     }
     createMut.mutate(form);
   };
-
-  const limitTo100 = (value: string) => value.slice(0, USER_FIELD_MAX_LENGTH);
 
   const handleDelete = (id: string, name: string) => {
     if (id === currentUserId) {
@@ -136,32 +134,38 @@ const UsersPage: React.FC = () => {
               <Label htmlFor="user-first-name">Imię</Label>
               <Input
                 id="user-first-name"
-                maxLength={USER_FIELD_MAX_LENGTH}
                 value={form.firstName}
-                onChange={e => setForm(f => ({ ...f, firstName: limitTo100(e.target.value) }))}
+                onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
                 required
               />
+              <p className={`text-xs ${isFirstNameTooLong ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {form.firstName.length}/{USER_FIELD_MAX_LENGTH}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="user-last-name">Nazwisko</Label>
               <Input
                 id="user-last-name"
-                maxLength={USER_FIELD_MAX_LENGTH}
                 value={form.lastName}
-                onChange={e => setForm(f => ({ ...f, lastName: limitTo100(e.target.value) }))}
+                onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
                 required
               />
+              <p className={`text-xs ${isLastNameTooLong ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {form.lastName.length}/{USER_FIELD_MAX_LENGTH}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="user-email">Adres e-mail</Label>
               <Input
                 id="user-email"
                 type="email"
-                maxLength={USER_FIELD_MAX_LENGTH}
                 value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: limitTo100(e.target.value) }))}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 required
               />
+              <p className={`text-xs ${isEmailTooLong ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {form.email.length}/{USER_FIELD_MAX_LENGTH}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="user-password">Hasło</Label>
@@ -186,7 +190,7 @@ const UsersPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full" disabled={createMut.isPending}>
+            <Button type="submit" className="w-full" disabled={createMut.isPending || isUserLengthInvalid}>
               {createMut.isPending ? 'Zapisywanie...' : 'Dodaj'}
             </Button>
           </form>
