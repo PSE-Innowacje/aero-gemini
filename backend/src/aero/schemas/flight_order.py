@@ -81,3 +81,20 @@ class FlightOrderRoutingOperation(ORMModel):
 class FlightOrderRoutingResponse(ORMModel):
     ordered_operations: list[FlightOrderRoutingOperation]
     total_distance_km: float
+
+
+class FlightOrderPreviewRequest(ORMModel):
+    start_site_id: int
+    end_site_id: int
+    helicopter_id: int
+    planned_operation_ids: list[int]
+    strategy: Literal["optimized", "input_order"] = "optimized"
+
+
+class FlightOrderPreviewResponse(ORMModel):
+    ordered_operations: list[FlightOrderRoutingOperation]
+    total_distance_km: float
+    within_helicopter_range: bool
+    range_margin_km: float
+    blocking_reasons: list[str]
+    cache_hit: bool = False

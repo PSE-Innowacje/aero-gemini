@@ -1,6 +1,7 @@
 from datetime import date
 from itertools import pairwise
 from math import isfinite
+from time import monotonic
 from typing import Any, cast
 
 from fastapi import HTTPException, status
@@ -15,6 +16,12 @@ from aero.models.flight_order import FlightOrder
 from aero.models.helicopter import Helicopter
 from aero.models.landing_site import LandingSite
 from aero.models.planned_operation import PlannedOperation
+from aero.services.flight_order_routing import optimize_flight_order_routing
+
+_PREVIEW_CACHE_TTL_SECONDS = 10.0
+_PREVIEW_CACHE_MAX_ITEMS = 256
+_PREVIEW_MAX_OPERATIONS = 200
+_preview_cache: dict[tuple[str, int, int, int, tuple[int, ...]], tuple[float, dict[str, Any]]] = {}
 
 
 def _resolve_related_entities(
@@ -211,6 +218,142 @@ def estimate_flight_order_distance_km(
         operations,
     )
     return _polyline_length_km(path)
+
+
+def _operation_preview_items(operations: list[PlannedOperation]) -> list[dict[str, Any]]:
+    ordered_operations: list[dict[str, Any]] = []
+    for operation in operations:
+        coordinates = _lonlat_points_from_route_geometry(operation.route_geometry)
+        if not coordinates:
+            continue
+        ordered_operations.append(
+            {
+                "planned_operation_id": operation.id,
+                "direction": "forward",
+                "entry_point": {
+                    "longitude": coordinates[0][0],
+                    "latitude": coordinates[0][1],
+                },
+                "exit_point": {
+                    "longitude": coordinates[-1][0],
+                    "latitude": coordinates[-1][1],
+                },
+                "traversal_distance_km": _polyline_length_km(coordinates),
+            }
+        )
+    return ordered_operations
+
+
+def _evict_preview_cache(now: float) -> None:
+    expired_keys = [cache_key for cache_key, (expires_at, _) in _preview_cache.items() if expires_at <= now]
+    for cache_key in expired_keys:
+        _preview_cache.pop(cache_key, None)
+    if len(_preview_cache) > _PREVIEW_CACHE_MAX_ITEMS:
+        for cache_key in list(_preview_cache.keys())[: len(_preview_cache) - _PREVIEW_CACHE_MAX_ITEMS]:
+            _preview_cache.pop(cache_key, None)
+
+
+@log_duration(
+    event="flight_order_preview",
+    started_message="preview_started",
+    completed_message="preview_completed",
+    context=lambda args: {
+        "start_site_id": args["start_site_id"],
+        "end_site_id": args["end_site_id"],
+        "helicopter_id": args["helicopter_id"],
+        "operations_count": len(args["planned_operation_ids"]),
+        "strategy": args["strategy"],
+    },
+)
+def preview_flight_order(
+    db: Session,
+    *,
+    start_site_id: int,
+    end_site_id: int,
+    helicopter_id: int,
+    planned_operation_ids: list[int],
+    strategy: str,
+) -> dict[str, Any]:
+    if len(planned_operation_ids) > _PREVIEW_MAX_OPERATIONS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Maximum {_PREVIEW_MAX_OPERATIONS} planned operations are allowed in preview",
+        )
+    if len(set(planned_operation_ids)) != len(planned_operation_ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="planned_operation_ids must contain unique values",
+        )
+
+    helicopter = db.scalar(select(Helicopter).where(Helicopter.id == helicopter_id))
+    if helicopter is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Helicopter not found")
+
+    operation_ids_key = tuple(planned_operation_ids)
+    cache_key = (strategy, start_site_id, end_site_id, helicopter_id, operation_ids_key)
+    now = monotonic()
+    _evict_preview_cache(now)
+    cache_item = _preview_cache.get(cache_key)
+    preview_logger = logger.bind(
+        event="flight_order_preview",
+        start_site_id=start_site_id,
+        end_site_id=end_site_id,
+        helicopter_id=helicopter_id,
+        strategy=strategy,
+        operations_count=len(planned_operation_ids),
+    )
+    if cache_item and cache_item[0] > now:
+        cached_response = dict(cache_item[1])
+        cached_response["cache_hit"] = True
+        preview_logger.bind(cache_hit=True).debug("preview_cache_hit")
+        return cached_response
+
+    started_at = monotonic()
+    if strategy == "optimized":
+        route_result = optimize_flight_order_routing(
+            db,
+            start_site_id=start_site_id,
+            end_site_id=end_site_id,
+            planned_operation_ids=planned_operation_ids,
+        )
+        ordered_operations = route_result["ordered_operations"]
+        total_distance_km = float(route_result["total_distance_km"])
+    else:
+        operations = cast(list[PlannedOperation], get_planned_operations(db, planned_operation_ids))
+        resolved_ids = {operation.id for operation in operations}
+        missing_ids = [operation_id for operation_id in planned_operation_ids if operation_id not in resolved_ids]
+        if missing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Planned operation not found: {missing_ids}",
+            )
+        ordered_operations = _operation_preview_items(operations)
+        total_distance_km = estimate_flight_order_distance_km(
+            db,
+            start_site_id=start_site_id,
+            end_site_id=end_site_id,
+            planned_operation_ids=planned_operation_ids,
+        )
+
+    total_distance_km = round(total_distance_km, 2)
+    range_margin_km = round(float(helicopter.range_km) - total_distance_km, 2)
+    within_helicopter_range = range_margin_km >= 0
+    response = {
+        "ordered_operations": ordered_operations,
+        "total_distance_km": total_distance_km,
+        "within_helicopter_range": within_helicopter_range,
+        "range_margin_km": range_margin_km,
+        "blocking_reasons": [] if within_helicopter_range else ["RANGE_EXCEEDED"],
+        "cache_hit": False,
+    }
+    _preview_cache[cache_key] = (monotonic() + _PREVIEW_CACHE_TTL_SECONDS, response)
+    preview_logger.bind(
+        cache_hit=False,
+        total_distance_km=total_distance_km,
+        within_helicopter_range=within_helicopter_range,
+        preview_duration_ms=round((monotonic() - started_at) * 1000, 2),
+    ).info("preview_completed_with_distance")
+    return response
 
 
 @log_duration(

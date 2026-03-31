@@ -1,4 +1,13 @@
-import type { CrewMember, FlightOrder, Helicopter, LandingSite, PlannedOperation, Role, User } from '@/types';
+import type {
+  CrewMember,
+  FlightOrder,
+  FlightOrderPreview,
+  Helicopter,
+  LandingSite,
+  PlannedOperation,
+  Role,
+  User,
+} from '@/types';
 import { getApiToken } from '@/api/token';
 
 const API_BASE_URL = 'http://localhost:8000/api';
@@ -16,7 +25,12 @@ const handleUnauthorized = () => {
   window.location.assign('/login');
 };
 
-async function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
+async function request<T>(
+  path: string,
+  method: Method = 'GET',
+  body?: unknown,
+  options?: { signal?: AbortSignal }
+): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
@@ -24,6 +38,7 @@ async function request<T>(path: string, method: Method = 'GET', body?: unknown):
       ...withAuthHeaders(),
     },
     body: body ? JSON.stringify(body) : undefined,
+    signal: options?.signal,
   });
   if (response.status === 401) {
     handleUnauthorized();
@@ -130,6 +145,32 @@ const toUiOrder = (o: any): FlightOrder => ({
   status: o.status,
   startSiteId: String(o.start_site_id),
   endSiteId: String(o.end_site_id),
+});
+
+const toUiFlightOrderPreview = (p: any): FlightOrderPreview => ({
+  orderedOperationIds: Array.isArray(p.ordered_operations)
+    ? p.ordered_operations.map((item: any) => String(item.planned_operation_id))
+    : [],
+  orderedOperations: Array.isArray(p.ordered_operations)
+    ? p.ordered_operations.map((item: any) => ({
+        plannedOperationId: String(item.planned_operation_id),
+        direction: item.direction === 'reverse' ? 'reverse' : 'forward',
+        entryPoint: {
+          longitude: Number(item?.entry_point?.longitude ?? 0),
+          latitude: Number(item?.entry_point?.latitude ?? 0),
+        },
+        exitPoint: {
+          longitude: Number(item?.exit_point?.longitude ?? 0),
+          latitude: Number(item?.exit_point?.latitude ?? 0),
+        },
+        traversalDistanceKm: Number(item?.traversal_distance_km ?? 0),
+      }))
+    : [],
+  totalDistanceKm: Number(p.total_distance_km ?? 0),
+  withinHelicopterRange: Boolean(p.within_helicopter_range),
+  rangeMarginKm: Number(p.range_margin_km ?? 0),
+  blockingReasons: Array.isArray(p.blocking_reasons) ? p.blocking_reasons.map(String) : [],
+  cacheHit: Boolean(p.cache_hit),
 });
 
 // Auth
@@ -286,12 +327,39 @@ export const estimateFlightOrderDistanceKm = async (data: {
   return res.distance_km;
 };
 
+export const previewFlightOrderRoute = async (
+  data: {
+    startSiteId: string;
+    endSiteId: string;
+    helicopterId: string;
+    operationIds: string[];
+    strategy?: 'optimized' | 'input_order';
+  },
+  signal?: AbortSignal
+): Promise<FlightOrderPreview> => {
+  const body = {
+    start_site_id: Number(data.startSiteId),
+    end_site_id: Number(data.endSiteId),
+    helicopter_id: Number(data.helicopterId),
+    planned_operation_ids: data.operationIds.map(Number),
+    strategy: data.strategy ?? 'optimized',
+  };
+  const response = await request('/flight-orders/preview', 'POST', body, { signal });
+  return toUiFlightOrderPreview(response);
+};
+
 export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<FlightOrder> => {
-  const estimated_distance = await estimateFlightOrderDistanceKm({
+  const preview = await previewFlightOrderRoute({
     startSiteId: data.startSiteId,
     endSiteId: data.endSiteId,
+    helicopterId: data.helicopterId,
     operationIds: data.operationIds,
   });
+  if (!preview.withinHelicopterRange) {
+    throw new Error(
+      `Selected operations exceed helicopter range by ${Math.abs(preview.rangeMarginKm).toFixed(2)} km`
+    );
+  }
   const payload = {
     planned_start: data.startTime || null,
     planned_end: data.startTime || null,
@@ -300,8 +368,8 @@ export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<
     crew_ids: data.crewIds.map(Number),
     start_site_id: Number(data.startSiteId),
     end_site_id: Number(data.endSiteId),
-    planned_operation_ids: data.operationIds.map(Number),
-    estimated_distance,
+    planned_operation_ids: preview.orderedOperationIds.map(Number),
+    estimated_distance: preview.totalDistanceKm,
   };
   return toUiOrder(await request('/flight-orders', 'POST', payload));
 };

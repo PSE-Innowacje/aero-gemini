@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchFlightOrders,
@@ -8,7 +8,7 @@ import {
   fetchCrew,
   fetchLandingSites,
   fetchOperations,
-  estimateFlightOrderDistanceKm,
+  previewFlightOrderRoute,
 } from '@/api/api';
 import type { FlightOrder, FlightOrderStatus } from '@/types';
 import { flightOrderStatusLabels } from '@/types';
@@ -22,7 +22,7 @@ import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
-import { buildFlightOrderPolylinePositions } from '@/lib/flightOrderRoute';
+import { buildFlightOrderPolylinePositions, buildFlightPreviewPolylinePositions } from '@/lib/flightOrderRoute';
 
 const statusColors: Record<FlightOrderStatus, string> = {
   1: 'bg-muted text-muted-foreground',
@@ -48,6 +48,17 @@ const FlightOrdersPage: React.FC = () => {
     startTime: '', helicopterId: '', pilotId: '', crewIds: [] as string[],
     landingSiteIds: [] as string[], operationIds: [] as string[], status: 1 as FlightOrderStatus,
     startSiteId: '', endSiteId: '',
+  });
+  const [debouncedPreviewInput, setDebouncedPreviewInput] = useState<{
+    startSiteId: string;
+    endSiteId: string;
+    helicopterId: string;
+    operationIds: string[];
+  }>({
+    startSiteId: '',
+    endSiteId: '',
+    helicopterId: '',
+    operationIds: [],
   });
 
   const createMut = useMutation({
@@ -96,26 +107,98 @@ const FlightOrdersPage: React.FC = () => {
     return crew.filter(c => ids.includes(c.id) && new Date(c.licenseExpiry) < new Date());
   }, [form.pilotId, form.crewIds, crew]);
 
-  const canEstimateDistance = open && !editing && !!form.startSiteId && !!form.endSiteId;
-  const {
-    data: estimatedDistanceKm,
-    isFetching: isEstimatedDistanceLoading,
-    isError: isEstimatedDistanceError,
-  } = useQuery({
-    queryKey: ['flightOrderDistanceEstimate', form.startSiteId, form.endSiteId, form.operationIds],
-    queryFn: () =>
-      estimateFlightOrderDistanceKm({
+  useEffect(() => {
+    if (!open) {
+      setDebouncedPreviewInput({
+        startSiteId: '',
+        endSiteId: '',
+        helicopterId: '',
+        operationIds: [],
+      });
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedPreviewInput({
         startSiteId: form.startSiteId,
         endSiteId: form.endSiteId,
-        operationIds: form.operationIds,
-      }),
-    enabled: canEstimateDistance,
+        helicopterId: form.helicopterId,
+        operationIds: [...form.operationIds],
+      });
+    }, 300);
+    return () => window.clearTimeout(timeoutId);
+  }, [open, form.startSiteId, form.endSiteId, form.helicopterId, form.operationIds]);
+
+  const canPreviewRoute =
+    open &&
+    !editing &&
+    !!debouncedPreviewInput.startSiteId &&
+    !!debouncedPreviewInput.endSiteId &&
+    !!debouncedPreviewInput.helicopterId;
+  const {
+    data: previewRoute,
+    isFetching: isPreviewRouteLoading,
+    isError: isPreviewRouteError,
+  } = useQuery({
+    queryKey: [
+      'flightOrderPreview',
+      debouncedPreviewInput.startSiteId,
+      debouncedPreviewInput.endSiteId,
+      debouncedPreviewInput.helicopterId,
+      debouncedPreviewInput.operationIds,
+    ],
+    queryFn: ({ signal }) =>
+      previewFlightOrderRoute(
+        {
+          startSiteId: debouncedPreviewInput.startSiteId,
+          endSiteId: debouncedPreviewInput.endSiteId,
+          helicopterId: debouncedPreviewInput.helicopterId,
+          operationIds: debouncedPreviewInput.operationIds,
+          strategy: 'optimized',
+        },
+        signal
+      ),
+    enabled: canPreviewRoute,
   });
+
+  const previewOperationIds = previewRoute?.orderedOperationIds?.length
+    ? previewRoute.orderedOperationIds
+    : form.operationIds;
+
+  const formPreviewMarkers: MapMarker[] = useMemo(() => {
+    if (!form.startSiteId || !form.endSiteId) return [];
+    return [form.startSiteId, form.endSiteId]
+      .map((id) => sites.find((site) => site.id === id))
+      .filter(Boolean)
+      .map((site) => ({ id: site!.id, lat: site!.latitude, lng: site!.longitude, popup: site!.name }));
+  }, [form.startSiteId, form.endSiteId, sites]);
+
+  const formPreviewPolylines: MapPolyline[] = useMemo(() => {
+    const positions = buildFlightPreviewPolylinePositions(
+      form.startSiteId,
+      form.endSiteId,
+      previewOperationIds,
+      sites,
+      operations
+    );
+    if (!positions || positions.length < 2) return [];
+    return [{ positions, color: '#0f766e', weight: 4 }];
+  }, [form.startSiteId, form.endSiteId, previewOperationIds, sites, operations]);
+
+  const previewCenter: [number, number] =
+    formPreviewMarkers.length > 0 ? [formPreviewMarkers[0].lat, formPreviewMarkers[0].lng] : [50.06, 19.94];
+
+  const isRangeExceeded = Boolean(canPreviewRoute && previewRoute && !previewRoute.withinHelicopterRange);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) updateMut.mutate({ id: editing.id, ...form });
-    else createMut.mutate(form);
+    else {
+      const payload = {
+        ...form,
+        operationIds: previewOperationIds,
+      };
+      createMut.mutate(payload);
+    }
   };
 
   // Map data for detail view
@@ -285,13 +368,21 @@ const FlightOrdersPage: React.FC = () => {
               {!editing && (
                 <p>
                   <span className="text-muted-foreground">Szacowany dystans:</span>{' '}
-                  {canEstimateDistance
-                    ? isEstimatedDistanceLoading
+                  {canPreviewRoute
+                    ? isPreviewRouteLoading
                       ? 'Obliczanie...'
-                      : isEstimatedDistanceError
+                      : isPreviewRouteError
                         ? 'Nie udało się obliczyć'
-                        : `${estimatedDistanceKm ?? 0} km`
-                    : 'Wybierz start i cel'}
+                        : `${previewRoute?.totalDistanceKm ?? 0} km`
+                    : 'Wybierz start, cel i helikopter'}
+                </p>
+              )}
+              {!editing && canPreviewRoute && previewRoute && (
+                <p>
+                  <span className="text-muted-foreground">Status zasięgu:</span>{' '}
+                  {previewRoute.withinHelicopterRange
+                    ? `OK (zapas ${previewRoute.rangeMarginKm.toFixed(2)} km)`
+                    : `Przekroczony o ${Math.abs(previewRoute.rangeMarginKm).toFixed(2)} km`}
                 </p>
               )}
             </div>
@@ -307,7 +398,31 @@ const FlightOrdersPage: React.FC = () => {
               </div>
             )}
 
-            <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
+            {!editing && isRangeExceeded && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+                <AlertTriangle className="h-4 w-4" />
+                Wybrany zestaw operacji przekracza zasięg helikoptera o {Math.abs(previewRoute!.rangeMarginKm).toFixed(2)} km.
+              </div>
+            )}
+
+            {!editing && formPreviewMarkers.length > 0 && (
+              <LeafletMap
+                center={previewCenter}
+                zoom={8}
+                markers={formPreviewMarkers}
+                polylines={formPreviewPolylines}
+                autoFitBounds
+                className="h-[320px]"
+              />
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={!editing && (isRangeExceeded || (canPreviewRoute && isPreviewRouteError))}
+            >
+              {editing ? 'Zapisz' : 'Dodaj'}
+            </Button>
           </form>
         </DialogContent>
       </Dialog>

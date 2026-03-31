@@ -278,6 +278,30 @@ Used by most list endpoints:
 - Errors:
   - `404` if flight order not found
 
+### `POST /api/flight-orders/preview`
+
+- Auth: `ADMIN`, `PLANNER`, `SUPERVISOR`, `PILOT`
+- Body (`FlightOrderPreviewRequest`):
+  - `start_site_id` (int)
+  - `end_site_id` (int)
+  - `helicopter_id` (int)
+  - `planned_operation_ids` (list[int])
+  - `strategy` (`optimized|input_order`, optional, default `optimized`)
+- Response (`FlightOrderPreviewResponse`):
+  - `ordered_operations` (list of operations with direction, entry/exit points, traversal distance)
+  - `total_distance_km` (float)
+  - `within_helicopter_range` (bool)
+  - `range_margin_km` (float, positive = remaining range, negative = exceeded range)
+  - `blocking_reasons` (list[str], e.g. `RANGE_EXCEEDED`)
+  - `cache_hit` (bool)
+- Behavior:
+  - Recalculates operation execution order for interactive map preview.
+  - Validates route distance against selected helicopter range.
+  - Uses short-lived cache for repeated rapid requests from UI.
+- Errors:
+  - `404` if helicopter, landing site, or planned operation is missing
+  - `422` on invalid input (duplicate planned operation IDs, too many operations)
+
 ## Common Error Responses
 
 - `401 Unauthorized`: missing/invalid bearer token or token user not found.

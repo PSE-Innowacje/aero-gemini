@@ -54,6 +54,7 @@ interface LeafletMapProps {
   onClick?: (lat: number, lng: number) => void;
   onMarkerClick?: (markerId: string) => void;
   selectedMarkerId?: string | null;
+  autoFitBounds?: boolean;
 }
 
 const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -65,6 +66,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   onClick,
   onMarkerClick,
   selectedMarkerId,
+  autoFitBounds = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -130,6 +132,18 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       L.polyline(p.positions, { color: p.color || '#1e293b', weight: p.weight || 3 }).addTo(map)
     );
   }, [polylines]);
+
+  // Optional auto-fit for dynamic previews.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !autoFitBounds) return;
+    const points: [number, number][] = [
+      ...markers.map((marker) => [marker.lat, marker.lng] as [number, number]),
+      ...polylines.flatMap((polyline) => polyline.positions),
+    ];
+    if (points.length < 2) return;
+    map.fitBounds(L.latLngBounds(points), { padding: [24, 24] });
+  }, [autoFitBounds, markers, polylines]);
 
   return <div ref={containerRef} className={`${className} rounded-lg overflow-hidden border border-border z-0`} />;
 };

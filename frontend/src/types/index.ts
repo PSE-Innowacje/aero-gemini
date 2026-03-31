@@ -86,3 +86,21 @@ export interface FlightOrder {
   startSiteId: string;
   endSiteId: string;
 }
+
+export interface FlightOrderPreviewOperation {
+  plannedOperationId: string;
+  direction: 'forward' | 'reverse';
+  entryPoint: { longitude: number; latitude: number };
+  exitPoint: { longitude: number; latitude: number };
+  traversalDistanceKm: number;
+}
+
+export interface FlightOrderPreview {
+  orderedOperationIds: string[];
+  orderedOperations: FlightOrderPreviewOperation[];
+  totalDistanceKm: number;
+  withinHelicopterRange: boolean;
+  rangeMarginKm: number;
+  blockingReasons: string[];
+  cacheHit: boolean;
+}

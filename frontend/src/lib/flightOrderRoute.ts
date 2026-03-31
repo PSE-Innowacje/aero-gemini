@@ -36,14 +36,30 @@ export function buildFlightOrderPolylinePositions(
   sites: LandingSite[],
   operations: PlannedOperation[]
 ): [number, number][] | null {
-  const startSite = sites.find(s => s.id === order.startSiteId);
-  const endSite = sites.find(s => s.id === order.endSiteId);
+  return buildFlightPreviewPolylinePositions(
+    order.startSiteId,
+    order.endSiteId,
+    order.operationIds,
+    sites,
+    operations
+  );
+}
+
+export function buildFlightPreviewPolylinePositions(
+  startSiteId: string,
+  endSiteId: string,
+  operationIds: string[],
+  sites: LandingSite[],
+  operations: PlannedOperation[]
+): [number, number][] | null {
+  const startSite = sites.find(s => s.id === startSiteId);
+  const endSite = sites.find(s => s.id === endSiteId);
   if (!startSite || !endSite) return null;
 
   const positions: [number, number][] = [[startSite.latitude, startSite.longitude]];
 
   const opById = new Map(operations.map((o) => [o.id, o]));
-  for (const opId of order.operationIds) {
+  for (const opId of operationIds) {
     const op = opById.get(opId);
     const coords = op?.routeGeometry?.coordinates;
     if (!coords?.length) continue;

@@ -215,6 +215,25 @@ schemas:
     crew_weight: int
     estimated_distance: float
     status: "1|2|3|4|5|6|7"
+  FlightOrderPreviewRequest:
+    start_site_id: int
+    end_site_id: int
+    helicopter_id: int
+    planned_operation_ids: "list[int]"
+    strategy: "optimized|input_order"
+  FlightOrderPreviewOperation:
+    planned_operation_id: int
+    direction: "forward|reverse"
+    entry_point: RoutePoint
+    exit_point: RoutePoint
+    traversal_distance_km: float
+  FlightOrderPreviewResponse:
+    ordered_operations: "list[FlightOrderPreviewOperation]"
+    total_distance_km: float
+    within_helicopter_range: bool
+    range_margin_km: float
+    blocking_reasons: "list[str]"
+    cache_hit: bool
 
 workflow_status:
   "1": DRAFT
@@ -442,6 +461,21 @@ endpoints:
     notes:
       - constraints are revalidated when pilot/helicopter/crew/distance changes
       - planned operation links are updated when planned_operation_ids is provided
+
+  - id: flight_orders_preview
+    method: POST
+    path: /flight-orders/preview
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR, PILOT]
+    request_schema: FlightOrderPreviewRequest
+    response_schema: FlightOrderPreviewResponse
+    errors:
+      "404": Helicopter or landing site or planned operation not found
+      "422": Validation error (duplicate planned_operation_ids, too many operations)
+    notes:
+      - returns optimized planned operation order for map preview
+      - computes total route distance and helicopter range validation
+      - includes cache_hit for quick repeated interactions in create-flight UI
 
 common_errors:
   "401": Missing or invalid bearer token, or token user no longer exists
