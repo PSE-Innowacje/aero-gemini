@@ -20,4 +20,25 @@ services:
       - |
         cd /workspace/backend
         uv sync
-        while sleep 1000; do :; done
+        uv run uvicorn aero.main:app --host 0.0.0.0 --port 8000
+
+  frontend:
+    image: node:22-bookworm
+    container_name: "${COMPOSE_PROJECT_NAME}_frontend"
+    working_dir: /workspace/frontend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ..:/workspace:cached
+      - frontend_node_modules:/workspace/frontend/node_modules
+    depends_on:
+      - backend
+    command:
+      - /bin/bash
+      - -c
+      - |
+        npm ci
+        npm run dev -- --host 0.0.0.0 --port 8080
+
+volumes:
+  frontend_node_modules:
