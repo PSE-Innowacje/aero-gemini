@@ -34,7 +34,7 @@ const HelicoptersPage: React.FC = () => {
   const { data: helicopters = [], isLoading } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
   const [minRangeFilter, setMinRangeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [maxCrewFilter, setMaxCrewFilter] = useState<string>('');
+  const [minCrewFilter, setMinCrewFilter] = useState<string>('');
   const [sortKey, setSortKey] = useState<HelicopterSortKey>('registration');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [open, setOpen] = useState(false);
@@ -135,11 +135,11 @@ const HelicoptersPage: React.FC = () => {
 
   const filteredAndSortedHelicopters = useMemo(() => {
     const minRangeValue = minRangeFilter.trim() === '' ? null : Number(minRangeFilter);
-    const maxCrewValue = maxCrewFilter.trim() === '' ? null : Number(maxCrewFilter);
+    const minCrewValue = minCrewFilter.trim() === '' ? null : Number(minCrewFilter);
 
     const filtered = helicopters.filter((h) => {
       if (minRangeValue !== null && Number.isFinite(minRangeValue) && h.maxRange < minRangeValue) return false;
-      if (maxCrewValue !== null && Number.isFinite(maxCrewValue) && h.maxCrew > maxCrewValue) return false;
+      if (minCrewValue !== null && Number.isFinite(minCrewValue) && h.maxCrew < minCrewValue) return false;
       if (statusFilter !== 'all' && h.status !== statusFilter) return false;
       return true;
     });
@@ -191,12 +191,12 @@ const HelicoptersPage: React.FC = () => {
     });
 
     return sorted;
-  }, [helicopters, maxCrewFilter, minRangeFilter, sortDirection, sortKey, statusFilter]);
+  }, [helicopters, minCrewFilter, minRangeFilter, sortDirection, sortKey, statusFilter]);
 
   const resetFilters = () => {
     setMinRangeFilter('');
     setStatusFilter('all');
-    setMaxCrewFilter('');
+    setMinCrewFilter('');
   };
 
   const toggleSort = (key: HelicopterSortKey) => {
@@ -262,21 +262,18 @@ const HelicoptersPage: React.FC = () => {
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="helicopters-max-crew-filter">Maks. liczba załogi</Label>
+          <Label htmlFor="helicopters-max-crew-filter">Min. liczba załogi</Label>
           <Input
             id="helicopters-max-crew-filter"
             type="number"
             min={1}
-            value={maxCrewFilter}
-            onChange={(e) => setMaxCrewFilter(e.target.value)}
+            value={minCrewFilter}
+            onChange={(e) => setMinCrewFilter(e.target.value)}
             placeholder="np. 6"
           />
         </div>
         <div className="flex items-end justify-between gap-2 md:justify-end">
           <Button type="button" variant="outline" onClick={resetFilters}>Wyczyść filtry</Button>
-          <div className="text-sm text-muted-foreground whitespace-nowrap">
-            {filteredAndSortedHelicopters.length}/{helicopters.length}
-          </div>
         </div>
       </div>
       <div className="border rounded-lg">

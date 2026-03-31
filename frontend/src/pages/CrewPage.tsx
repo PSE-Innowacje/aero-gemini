@@ -21,7 +21,7 @@ const CrewPage: React.FC = () => {
   const [previewing, setPreviewing] = useState<CrewMember | null>(null);
   const [form, setForm] = useState({ email: '', name: '', role: 'PILOT' as CrewRole, licenseExpiry: '', weight: 0 });
   const [roleFilter, setRoleFilter] = useState<'ALL' | CrewRole>('ALL');
-  const [validityFilter, setValidityFilter] = useState<'ALL' | 'INVALID'>('ALL');
+  const [validityFilter, setValidityFilter] = useState<'ALL' | 'VALID' | 'INVALID'>('ALL');
   const [sortKey, setSortKey] = useState<'name' | 'weight'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -41,7 +41,14 @@ const CrewPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) updateMut.mutate({ id: editing.id, ...form });
-    else createMut.mutate(form);
+    else {
+      createMut.mutate({
+        ...form,
+        pilotLicenseNumber: null,
+        licenseValidUntil: form.role === 'PILOT' ? form.licenseExpiry : null,
+        trainingValidUntil: form.licenseExpiry,
+      });
+    }
   };
 
   const toDateOnly = (value?: string | null) => {
@@ -92,7 +99,11 @@ const CrewPage: React.FC = () => {
     const direction = sortDirection === 'asc' ? 1 : -1;
     return crew
       .filter(member => roleFilter === 'ALL' || member.role === roleFilter)
-      .filter(member => validityFilter !== 'INVALID' || isExpired(member.licenseExpiry))
+      .filter(member => {
+        if (validityFilter === 'VALID') return !isExpired(member.licenseExpiry);
+        if (validityFilter === 'INVALID') return isExpired(member.licenseExpiry);
+        return true;
+      })
       .sort((a, b) => {
         if (sortKey === 'weight') {
           const byWeight = (a.weight - b.weight) * direction;
@@ -122,13 +133,14 @@ const CrewPage: React.FC = () => {
               <SelectItem value="OBSERVER">Obserwator</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={validityFilter} onValueChange={v => setValidityFilter(v as 'ALL' | 'INVALID')}>
+          <Select value={validityFilter} onValueChange={v => setValidityFilter(v as 'ALL' | 'VALID' | 'INVALID')}>
             <SelectTrigger className="w-[260px]">
               <SelectValue placeholder="Ważność uprawnień" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Wszystkie uprawnienia</SelectItem>
-              <SelectItem value="INVALID">Tylko nieważne uprawnienia</SelectItem>
+              <SelectItem value="VALID">Ważne uprawnienia</SelectItem>
+              <SelectItem value="INVALID">Nieważne uprawnienia</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
