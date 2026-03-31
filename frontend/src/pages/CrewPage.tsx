@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Eye, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { Plus, Pencil, Eye, AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 
 const CrewPage: React.FC = () => {
   const qc = useQueryClient();
@@ -21,7 +21,9 @@ const CrewPage: React.FC = () => {
   const [previewing, setPreviewing] = useState<CrewMember | null>(null);
   const [form, setForm] = useState({ email: '', name: '', role: 'PILOT' as CrewRole, licenseExpiry: '', weight: 0 });
   const [roleFilter, setRoleFilter] = useState<'ALL' | CrewRole>('ALL');
-  const [roleSortDirection, setRoleSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [validityFilter, setValidityFilter] = useState<'ALL' | 'INVALID'>('ALL');
+  const [sortKey, setSortKey] = useState<'name' | 'weight'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const createMut = useMutation({
     mutationFn: (d: Omit<CrewMember, 'id'>) => createCrewMember(d),
@@ -56,16 +58,52 @@ const CrewPage: React.FC = () => {
   };
   const getValidityLabel = (date?: string | null) => (isExpired(date) ? 'Nieważna' : 'Ważna');
   const roleLabels: Record<CrewRole, string> = { PILOT: 'Pilot', OBSERVER: 'Obserwator' };
+
+  const toggleSort = (key: 'name' | 'weight') => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDirection('asc');
+      return;
+    }
+    setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+  };
+
+  const SortHeader = ({ label, column }: { label: string; column: 'name' | 'weight' }) => {
+    const isActive = sortKey === column;
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 hover:text-foreground"
+        onClick={() => toggleSort(column)}
+      >
+        {label}
+        {!isActive ? (
+          <ArrowUpDown className="h-3 w-3" />
+        ) : sortDirection === 'asc' ? (
+          <ChevronUp className="h-3 w-3" />
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )}
+      </button>
+    );
+  };
+
   const filteredAndSortedCrew = useMemo(() => {
-    const direction = roleSortDirection === 'asc' ? 1 : -1;
+    const direction = sortDirection === 'asc' ? 1 : -1;
     return crew
       .filter(member => roleFilter === 'ALL' || member.role === roleFilter)
+      .filter(member => validityFilter !== 'INVALID' || isExpired(member.licenseExpiry))
       .sort((a, b) => {
-      const byRole = roleLabels[a.role].localeCompare(roleLabels[b.role], 'pl') * direction;
-      if (byRole !== 0) return byRole;
-      return a.name.localeCompare(b.name, 'pl');
+        if (sortKey === 'weight') {
+          const byWeight = (a.weight - b.weight) * direction;
+          if (byWeight !== 0) return byWeight;
+          return a.name.localeCompare(b.name, 'pl');
+        }
+        const byName = a.name.localeCompare(b.name, 'pl') * direction;
+        if (byName !== 0) return byName;
+        return a.weight - b.weight;
     });
-  }, [crew, roleFilter, roleSortDirection]);
+  }, [crew, roleFilter, sortDirection, sortKey, validityFilter]);
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
@@ -84,6 +122,15 @@ const CrewPage: React.FC = () => {
               <SelectItem value="OBSERVER">Obserwator</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={validityFilter} onValueChange={v => setValidityFilter(v as 'ALL' | 'INVALID')}>
+            <SelectTrigger className="w-[260px]">
+              <SelectValue placeholder="Ważność uprawnień" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Wszystkie uprawnienia</SelectItem>
+              <SelectItem value="INVALID">Tylko nieważne uprawnienia</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
         </div>
       </div>
@@ -91,21 +138,12 @@ const CrewPage: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Imię i nazwisko</TableHead>
+              <TableHead><SortHeader label="Imię i nazwisko" column="name" /></TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 hover:text-foreground"
-                  onClick={() => setRoleSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))}
-                >
-                  Rola
-                  <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </TableHead>
+              <TableHead>Rola</TableHead>
               <TableHead>Uprawnienia ważne do</TableHead>
               <TableHead>Podgląd uprawnień</TableHead>
-              <TableHead>Waga (kg)</TableHead>
+              <TableHead><SortHeader label="Waga (kg)" column="weight" /></TableHead>
               <TableHead className="w-24" />
             </TableRow>
           </TableHeader>
