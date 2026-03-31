@@ -1,32 +1,24 @@
 from datetime import date
-from time import perf_counter
 
 from fastapi import HTTPException, status
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from aero.core.logging import log_duration
 from aero.models.crew_member import CrewMember
 from aero.models.flight_order import FlightOrder
 from aero.models.helicopter import Helicopter
 from aero.models.planned_operation import PlannedOperation
 
 
-def validate_flight_order_constraints(
+def _resolve_related_entities(
     db: Session,
     helicopter_id: int,
     pilot_id: int,
     crew_ids: list[int],
-    estimated_distance: float,
-) -> tuple[Helicopter, CrewMember, list[CrewMember], int]:
-    started = perf_counter()
-    logger.bind(
-        event="flight_order_validation",
-        helicopter_id=helicopter_id,
-        pilot_id=pilot_id,
-        crew_ids=crew_ids,
-        estimated_distance=estimated_distance,
-    ).info("validation_started")
+    validation_logger,
+) -> tuple[Helicopter, CrewMember, list[CrewMember]]:
     helicopter = db.scalar(select(Helicopter).where(Helicopter.id == helicopter_id))
     pilot = db.scalar(select(CrewMember).where(CrewMember.id == pilot_id))
     requested_crew_ids = set(crew_ids)
@@ -37,58 +29,60 @@ def validate_flight_order_constraints(
     crew = [crew_by_id[crew_id] for crew_id in crew_ids if crew_id in crew_by_id]
 
     if helicopter is None or pilot is None or len(crew) != len(crew_ids):
-        logger.warning(
-            "Related entity not found for flight order: helicopter_id={}, pilot_id={}, crew_ids={}",
-            helicopter_id,
-            pilot_id,
-            crew_ids,
-        )
+        validation_logger.warning("validation_related_entity_not_found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Related entity not found"
         )
 
+    return helicopter, pilot, crew
+
+
+def _validate_certification_dates(
+    helicopter: Helicopter,
+    pilot: CrewMember,
+    crew: list[CrewMember],
+    validation_logger,
+) -> None:
     today = date.today()
     if helicopter.inspection_valid_until and helicopter.inspection_valid_until < today:
-        logger.bind(
-            event="flight_order_validation",
-            helicopter_id=helicopter_id,
+        validation_logger.bind(
             inspection_valid_until=str(helicopter.inspection_valid_until),
             checked_on=str(today),
         ).warning("helicopter_inspection_expired")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Helicopter inspection expired"
         )
+
     if pilot.license_valid_until and pilot.license_valid_until < today:
-        logger.bind(
-            event="flight_order_validation",
-            pilot_id=pilot_id,
+        validation_logger.bind(
             license_valid_until=str(pilot.license_valid_until),
             checked_on=str(today),
         ).warning("pilot_license_expired")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pilot license expired")
+
     if any(member.training_valid_until and member.training_valid_until < today for member in crew):
-        logger.bind(
-            event="flight_order_validation",
-            crew_ids=crew_ids,
-            checked_on=str(today),
-        ).warning("crew_training_expired")
+        validation_logger.bind(checked_on=str(today)).warning("crew_training_expired")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Crew training expired")
 
+
+def _validate_weight_and_range(
+    helicopter: Helicopter,
+    crew: list[CrewMember],
+    estimated_distance: float,
+    validation_logger,
+) -> int:
     crew_weight = int(sum(member.weight for member in crew))
     if crew_weight > helicopter.max_crew_weight:
-        logger.bind(
-            event="flight_order_validation",
-            helicopter_id=helicopter_id,
+        validation_logger.bind(
             crew_weight=crew_weight,
             max_crew_weight=helicopter.max_crew_weight,
         ).warning("crew_weight_exceeded")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Crew weight exceeds helicopter limit"
         )
+
     if estimated_distance > helicopter.range_km:
-        logger.bind(
-            event="flight_order_validation",
-            helicopter_id=helicopter_id,
+        validation_logger.bind(
             estimated_distance=estimated_distance,
             range_km=helicopter.range_km,
         ).warning("estimated_distance_exceeded")
@@ -96,26 +90,73 @@ def validate_flight_order_constraints(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Estimated distance exceeds range"
         )
 
-    logger.bind(
+    return crew_weight
+
+
+@log_duration(
+    event="flight_order_validation",
+    started_message="validation_started",
+    completed_message="validation_completed",
+    context=lambda args: {
+        "helicopter_id": args["helicopter_id"],
+        "pilot_id": args["pilot_id"],
+        "crew_ids": args["crew_ids"],
+        "estimated_distance": args["estimated_distance"],
+    },
+)
+def validate_flight_order_constraints(
+    db: Session,
+    helicopter_id: int,
+    pilot_id: int,
+    crew_ids: list[int],
+    estimated_distance: float,
+) -> tuple[Helicopter, CrewMember, list[CrewMember], int]:
+    validation_logger = logger.bind(
         event="flight_order_validation",
         helicopter_id=helicopter_id,
         pilot_id=pilot_id,
-        crew_count=len(crew),
-        crew_weight=crew_weight,
-        duration_ms=round((perf_counter() - started) * 1000, 2),
-    ).info("validation_completed")
+        crew_ids=crew_ids,
+        estimated_distance=estimated_distance,
+    )
+    helicopter, pilot, crew = _resolve_related_entities(
+        db=db,
+        helicopter_id=helicopter_id,
+        pilot_id=pilot_id,
+        crew_ids=crew_ids,
+        validation_logger=validation_logger,
+    )
+    _validate_certification_dates(
+        helicopter=helicopter,
+        pilot=pilot,
+        crew=crew,
+        validation_logger=validation_logger,
+    )
+    crew_weight = _validate_weight_and_range(
+        helicopter=helicopter,
+        crew=crew,
+        estimated_distance=estimated_distance,
+        validation_logger=validation_logger,
+    )
+
+    validation_logger.bind(crew_count=len(crew), crew_weight=crew_weight).debug("validation_result")
     return helicopter, pilot, crew, crew_weight
 
 
+@log_duration(
+    event="flight_order_planned_operations",
+    started_message="resolve_planned_operations_started",
+    completed_message="resolve_planned_operations_completed",
+    context=lambda args: {"requested_ids": args["planned_operation_ids"]},
+    level="debug",
+)
 def get_planned_operations(db: Session, planned_operation_ids: list[int]) -> list[PlannedOperation]:
     if not planned_operation_ids:
         return []
 
-    started = perf_counter()
-    logger.bind(
+    operations_logger = logger.bind(
         event="flight_order_planned_operations",
         requested_ids=planned_operation_ids,
-    ).debug("resolve_planned_operations_started")
+    )
     requested_ids = set(planned_operation_ids)
     operation_by_id = {
         operation.id: operation
@@ -124,12 +165,9 @@ def get_planned_operations(db: Session, planned_operation_ids: list[int]) -> lis
         )
     }
     resolved = [operation_by_id[operation_id] for operation_id in planned_operation_ids if operation_id in operation_by_id]
-    logger.bind(
-        event="flight_order_planned_operations",
-        requested_count=len(planned_operation_ids),
-        resolved_count=len(resolved),
-        duration_ms=round((perf_counter() - started) * 1000, 2),
-    ).debug("resolve_planned_operations_completed")
+    operations_logger.bind(requested_count=len(planned_operation_ids), resolved_count=len(resolved)).debug(
+        "resolve_planned_operations_resolved_counts"
+    )
     return resolved
 
 
@@ -140,24 +178,18 @@ def assign_relationships(
     crew: list[CrewMember],
     planned_operations: list[PlannedOperation] | None = None,
 ) -> None:
-    logger.bind(
+    relationships_logger = logger.bind(
         event="flight_order_relationships",
         order_id=order.id,
         pilot_id=pilot.id,
         helicopter_id=helicopter.id,
         crew_count=len(crew),
         planned_operations_count=0 if planned_operations is None else len(planned_operations),
-    ).debug("assign_relationships_started")
+    )
+    relationships_logger.debug("assign_relationships_started")
     order.pilot = pilot
     order.helicopter = helicopter
     order.crew_members = crew
     if planned_operations is not None:
         order.planned_operations = planned_operations
-    logger.bind(
-        event="flight_order_relationships",
-        order_id=order.id,
-        pilot_id=pilot.id,
-        helicopter_id=helicopter.id,
-        crew_count=len(crew),
-        planned_operations_count=0 if planned_operations is None else len(planned_operations),
-    ).debug("assign_relationships_completed")
+    relationships_logger.debug("assign_relationships_completed")
