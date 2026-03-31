@@ -12,6 +12,87 @@ from aero.models.helicopter import Helicopter
 from aero.models.planned_operation import PlannedOperation
 
 
+def _resolve_related_entities(
+    db: Session,
+    helicopter_id: int,
+    pilot_id: int,
+    crew_ids: list[int],
+    validation_logger,
+) -> tuple[Helicopter, CrewMember, list[CrewMember]]:
+    helicopter = db.scalar(select(Helicopter).where(Helicopter.id == helicopter_id))
+    pilot = db.scalar(select(CrewMember).where(CrewMember.id == pilot_id))
+    requested_crew_ids = set(crew_ids)
+    crew_by_id = {
+        member.id: member
+        for member in db.scalars(select(CrewMember).where(CrewMember.id.in_(requested_crew_ids)))
+    }
+    crew = [crew_by_id[crew_id] for crew_id in crew_ids if crew_id in crew_by_id]
+
+    if helicopter is None or pilot is None or len(crew) != len(crew_ids):
+        validation_logger.warning("validation_related_entity_not_found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Related entity not found"
+        )
+
+    return helicopter, pilot, crew
+
+
+def _validate_certification_dates(
+    helicopter: Helicopter,
+    pilot: CrewMember,
+    crew: list[CrewMember],
+    validation_logger,
+) -> None:
+    today = date.today()
+    if helicopter.inspection_valid_until and helicopter.inspection_valid_until < today:
+        validation_logger.bind(
+            inspection_valid_until=str(helicopter.inspection_valid_until),
+            checked_on=str(today),
+        ).warning("helicopter_inspection_expired")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Helicopter inspection expired"
+        )
+
+    if pilot.license_valid_until and pilot.license_valid_until < today:
+        validation_logger.bind(
+            license_valid_until=str(pilot.license_valid_until),
+            checked_on=str(today),
+        ).warning("pilot_license_expired")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pilot license expired")
+
+    if any(member.training_valid_until and member.training_valid_until < today for member in crew):
+        validation_logger.bind(checked_on=str(today)).warning("crew_training_expired")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Crew training expired")
+
+
+def _validate_weight_and_range(
+    helicopter: Helicopter,
+    crew: list[CrewMember],
+    estimated_distance: float,
+    validation_logger,
+) -> int:
+    crew_weight = int(sum(member.weight for member in crew))
+    if crew_weight > helicopter.max_crew_weight:
+        validation_logger.bind(
+            crew_weight=crew_weight,
+            max_crew_weight=helicopter.max_crew_weight,
+        ).warning("crew_weight_exceeded")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Crew weight exceeds helicopter limit"
+        )
+
+    if estimated_distance > helicopter.range_km:
+        validation_logger.bind(
+            estimated_distance=estimated_distance,
+            range_km=helicopter.range_km,
+        ).warning("estimated_distance_exceeded")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Estimated distance exceeds range"
+        )
+
+    return crew_weight
+
+
 @log_duration(
     event="flight_order_validation",
     started_message="validation_started",
@@ -37,59 +118,25 @@ def validate_flight_order_constraints(
         crew_ids=crew_ids,
         estimated_distance=estimated_distance,
     )
-    helicopter = db.scalar(select(Helicopter).where(Helicopter.id == helicopter_id))
-    pilot = db.scalar(select(CrewMember).where(CrewMember.id == pilot_id))
-    requested_crew_ids = set(crew_ids)
-    crew_by_id = {
-        member.id: member
-        for member in db.scalars(select(CrewMember).where(CrewMember.id.in_(requested_crew_ids)))
-    }
-    crew = [crew_by_id[crew_id] for crew_id in crew_ids if crew_id in crew_by_id]
-
-    if helicopter is None or pilot is None or len(crew) != len(crew_ids):
-        validation_logger.warning("validation_related_entity_not_found")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Related entity not found"
-        )
-
-    today = date.today()
-    if helicopter.inspection_valid_until and helicopter.inspection_valid_until < today:
-        validation_logger.bind(
-            inspection_valid_until=str(helicopter.inspection_valid_until),
-            checked_on=str(today),
-        ).warning("helicopter_inspection_expired")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Helicopter inspection expired"
-        )
-    if pilot.license_valid_until and pilot.license_valid_until < today:
-        validation_logger.bind(
-            license_valid_until=str(pilot.license_valid_until),
-            checked_on=str(today),
-        ).warning("pilot_license_expired")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pilot license expired")
-    if any(member.training_valid_until and member.training_valid_until < today for member in crew):
-        validation_logger.bind(
-            checked_on=str(today),
-        ).warning("crew_training_expired")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Crew training expired")
-
-    crew_weight = int(sum(member.weight for member in crew))
-    if crew_weight > helicopter.max_crew_weight:
-        validation_logger.bind(
-            crew_weight=crew_weight,
-            max_crew_weight=helicopter.max_crew_weight,
-        ).warning("crew_weight_exceeded")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Crew weight exceeds helicopter limit"
-        )
-    if estimated_distance > helicopter.range_km:
-        validation_logger.bind(
-            estimated_distance=estimated_distance,
-            range_km=helicopter.range_km,
-        ).warning("estimated_distance_exceeded")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Estimated distance exceeds range"
-        )
+    helicopter, pilot, crew = _resolve_related_entities(
+        db=db,
+        helicopter_id=helicopter_id,
+        pilot_id=pilot_id,
+        crew_ids=crew_ids,
+        validation_logger=validation_logger,
+    )
+    _validate_certification_dates(
+        helicopter=helicopter,
+        pilot=pilot,
+        crew=crew,
+        validation_logger=validation_logger,
+    )
+    crew_weight = _validate_weight_and_range(
+        helicopter=helicopter,
+        crew=crew,
+        estimated_distance=estimated_distance,
+        validation_logger=validation_logger,
+    )
 
     validation_logger.bind(crew_count=len(crew), crew_weight=crew_weight).debug("validation_result")
     return helicopter, pilot, crew, crew_weight
