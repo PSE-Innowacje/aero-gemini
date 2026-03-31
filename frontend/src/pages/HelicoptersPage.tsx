@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchHelicopters, createHelicopter, updateHelicopter } from '@/api/api';
 import type { Helicopter } from '@/types';
@@ -10,16 +10,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ChevronUp, Pencil, Plus } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   active: 'bg-green-100 text-green-800',
   inactive: 'bg-red-100 text-red-800',
 };
 
+type HelicopterSortKey =
+  | 'registration'
+  | 'type'
+  | 'description'
+  | 'maxCrew'
+  | 'status'
+  | 'inspectionValidUntil'
+  | 'maxRange'
+  | 'maxWeight';
+type SortDirection = 'asc' | 'desc';
+type StatusFilter = 'all' | 'active' | 'inactive';
+
 const HelicoptersPage: React.FC = () => {
   const qc = useQueryClient();
   const { data: helicopters = [], isLoading } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
+  const [minRangeFilter, setMinRangeFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [maxCrewFilter, setMaxCrewFilter] = useState<string>('');
+  const [sortKey, setSortKey] = useState<HelicopterSortKey>('registration');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Helicopter | null>(null);
   const [form, setForm] = useState({
@@ -116,6 +133,101 @@ const HelicoptersPage: React.FC = () => {
     else createMut.mutate(payload);
   };
 
+  const filteredAndSortedHelicopters = useMemo(() => {
+    const minRangeValue = minRangeFilter.trim() === '' ? null : Number(minRangeFilter);
+    const maxCrewValue = maxCrewFilter.trim() === '' ? null : Number(maxCrewFilter);
+
+    const filtered = helicopters.filter((h) => {
+      if (minRangeValue !== null && Number.isFinite(minRangeValue) && h.maxRange < minRangeValue) return false;
+      if (maxCrewValue !== null && Number.isFinite(maxCrewValue) && h.maxCrew > maxCrewValue) return false;
+      if (statusFilter !== 'all' && h.status !== statusFilter) return false;
+      return true;
+    });
+
+    const compareNullable = <T,>(left: T | null | undefined, right: T | null | undefined, compare: (a: T, b: T) => number) => {
+      const leftMissing = left === null || left === undefined;
+      const rightMissing = right === null || right === undefined;
+      if (leftMissing && rightMissing) return 0;
+      if (leftMissing) return 1;
+      if (rightMissing) return -1;
+      return compare(left, right);
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+      let result = 0;
+      switch (sortKey) {
+        case 'maxCrew':
+          result = a.maxCrew - b.maxCrew;
+          break;
+        case 'maxRange':
+          result = a.maxRange - b.maxRange;
+          break;
+        case 'maxWeight':
+          result = a.maxWeight - b.maxWeight;
+          break;
+        case 'inspectionValidUntil':
+          result = compareNullable(
+            a.inspectionValidUntil ?? null,
+            b.inspectionValidUntil ?? null,
+            (left, right) => new Date(left).getTime() - new Date(right).getTime()
+          );
+          break;
+        case 'registration':
+          result = a.registration.localeCompare(b.registration, 'pl', { sensitivity: 'base' });
+          break;
+        case 'type':
+          result = a.type.localeCompare(b.type, 'pl', { sensitivity: 'base' });
+          break;
+        case 'description':
+          result = (a.description ?? '').localeCompare((b.description ?? ''), 'pl', { sensitivity: 'base' });
+          break;
+        case 'status':
+          result = a.status.localeCompare(b.status, 'pl', { sensitivity: 'base' });
+          break;
+        default:
+          result = 0;
+      }
+      return sortDirection === 'asc' ? result : -result;
+    });
+
+    return sorted;
+  }, [helicopters, maxCrewFilter, minRangeFilter, sortDirection, sortKey, statusFilter]);
+
+  const resetFilters = () => {
+    setMinRangeFilter('');
+    setStatusFilter('all');
+    setMaxCrewFilter('');
+  };
+
+  const toggleSort = (key: HelicopterSortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDirection('asc');
+      return;
+    }
+    setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+  };
+
+  const SortHeader = ({ label, column }: { label: string; column: HelicopterSortKey }) => {
+    const isActive = sortKey === column;
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(column)}
+        className="inline-flex items-center gap-1 text-left font-medium hover:text-foreground"
+      >
+        <span>{label}</span>
+        {!isActive ? (
+          <ArrowUpDown className="h-3.5 w-3.5 opacity-60" />
+        ) : sortDirection === 'asc' ? (
+          <ChevronUp className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" />
+        )}
+      </button>
+    );
+  };
+
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
@@ -124,23 +236,66 @@ const HelicoptersPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-foreground">Helikoptery</h1>
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
       </div>
+      <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+        <div className="space-y-1">
+          <Label htmlFor="helicopters-min-range-filter">Minimalny zasięg (km)</Label>
+          <Input
+            id="helicopters-min-range-filter"
+            type="number"
+            min={0}
+            value={minRangeFilter}
+            onChange={(e) => setMinRangeFilter(e.target.value)}
+            placeholder="np. 400"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="helicopters-status-filter">Status</Label>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+            <SelectTrigger id="helicopters-status-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Wszystkie</SelectItem>
+              <SelectItem value="active">Aktywny</SelectItem>
+              <SelectItem value="inactive">Nieaktywny</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="helicopters-max-crew-filter">Maks. liczba załogi</Label>
+          <Input
+            id="helicopters-max-crew-filter"
+            type="number"
+            min={1}
+            value={maxCrewFilter}
+            onChange={(e) => setMaxCrewFilter(e.target.value)}
+            placeholder="np. 6"
+          />
+        </div>
+        <div className="flex items-end justify-between gap-2 md:justify-end">
+          <Button type="button" variant="outline" onClick={resetFilters}>Wyczyść filtry</Button>
+          <div className="text-sm text-muted-foreground whitespace-nowrap">
+            {filteredAndSortedHelicopters.length}/{helicopters.length}
+          </div>
+        </div>
+      </div>
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Rejestracja</TableHead>
-              <TableHead>Typ</TableHead>
-              <TableHead>Opis</TableHead>
-              <TableHead>Maks. liczba załogi</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Ważność przeglądu</TableHead>
-              <TableHead>Zasięg (km)</TableHead>
-              <TableHead>Maks. udźwig załogi (kg)</TableHead>
+              <TableHead><SortHeader label="Rejestracja" column="registration" /></TableHead>
+              <TableHead><SortHeader label="Typ" column="type" /></TableHead>
+              <TableHead><SortHeader label="Opis" column="description" /></TableHead>
+              <TableHead><SortHeader label="Maks. liczba załogi" column="maxCrew" /></TableHead>
+              <TableHead><SortHeader label="Status" column="status" /></TableHead>
+              <TableHead><SortHeader label="Ważność przeglądu" column="inspectionValidUntil" /></TableHead>
+              <TableHead><SortHeader label="Zasięg (km)" column="maxRange" /></TableHead>
+              <TableHead><SortHeader label="Maks. udźwig załogi (kg)" column="maxWeight" /></TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {helicopters.map(h => (
+            {filteredAndSortedHelicopters.map(h => (
               <TableRow key={h.id}>
                 <TableCell className="font-medium">{h.registration}</TableCell>
                 <TableCell>{h.type}</TableCell>
