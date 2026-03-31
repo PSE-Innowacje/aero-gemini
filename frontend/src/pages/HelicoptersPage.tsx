@@ -76,8 +76,28 @@ const HelicoptersPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.description.length > 100) {
+      toast({
+        title: 'Błąd walidacji',
+        description: 'Opis może mieć maksymalnie 100 znaków.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!Number.isInteger(form.maxCrew) || form.maxCrew < 1 || form.maxCrew > 10) {
+      toast({
+        title: 'Błąd walidacji',
+        description: 'Maks. liczba członków załogi musi być w zakresie 1-10.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (form.status === 'active' && !form.inspectionValidUntil) {
-      toast({ title: 'Brak danych', description: 'Data ważności przeglądu jest wymagana dla aktywnego helikoptera.', variant: 'destructive' });
+      toast({
+        title: 'Błąd walidacji',
+        description: 'Data ważności przeglądu jest wymagana dla aktywnego helikoptera.',
+        variant: 'destructive',
+      });
       return;
     }
     const payload = {
@@ -162,6 +182,7 @@ const HelicoptersPage: React.FC = () => {
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               />
+              <p className="text-xs text-muted-foreground">{form.description.length}/100 znaków</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="helicopter-max-crew">Maks. liczba członków załogi</Label>
@@ -175,6 +196,7 @@ const HelicoptersPage: React.FC = () => {
                 onChange={e => setForm(f => ({ ...f, maxCrew: Number(e.target.value) }))}
                 required
               />
+              <p className="text-xs text-muted-foreground">Dozwolony zakres: 1-10</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="helicopter-status">Status</Label>
@@ -203,6 +225,9 @@ const HelicoptersPage: React.FC = () => {
                 required={form.status === 'active'}
                 disabled={form.status !== 'active'}
               />
+              {form.status === 'active' && (
+                <p className="text-xs text-muted-foreground">Pole wymagane dla statusu aktywny</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="helicopter-range">Zasięg (km)</Label>
