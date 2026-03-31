@@ -103,7 +103,7 @@ const CrewPage: React.FC = () => {
                   <ArrowUpDown className="h-3 w-3" />
                 </button>
               </TableHead>
-              <TableHead>Licencja ważna do</TableHead>
+              <TableHead>Uprawnienia ważne do</TableHead>
               <TableHead>Podgląd uprawnień</TableHead>
               <TableHead>Waga (kg)</TableHead>
               <TableHead className="w-24" />
