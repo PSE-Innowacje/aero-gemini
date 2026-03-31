@@ -2,11 +2,13 @@ from datetime import date
 
 from fastapi import HTTPException, status
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aero.models.crew_member import CrewMember
 from aero.models.flight_order import FlightOrder
 from aero.models.helicopter import Helicopter
+from aero.models.planned_operation import PlannedOperation
 
 
 def validate_flight_order_constraints(
@@ -16,11 +18,16 @@ def validate_flight_order_constraints(
     crew_ids: list[int],
     estimated_distance: float,
 ) -> tuple[Helicopter, CrewMember, list[CrewMember], int]:
-    helicopter = db.get(Helicopter, helicopter_id)
-    pilot = db.get(CrewMember, pilot_id)
-    crew_members = [db.get(CrewMember, crew_id) for crew_id in crew_ids]
+    helicopter = db.scalar(select(Helicopter).where(Helicopter.id == helicopter_id))
+    pilot = db.scalar(select(CrewMember).where(CrewMember.id == pilot_id))
+    requested_crew_ids = set(crew_ids)
+    crew_by_id = {
+        member.id: member
+        for member in db.scalars(select(CrewMember).where(CrewMember.id.in_(requested_crew_ids)))
+    }
+    crew = [crew_by_id[crew_id] for crew_id in crew_ids if crew_id in crew_by_id]
 
-    if helicopter is None or pilot is None or any(member is None for member in crew_members):
+    if helicopter is None or pilot is None or len(crew) != len(crew_ids):
         logger.warning(
             "Related entity not found for flight order: helicopter_id={}, pilot_id={}, crew_ids={}",
             helicopter_id,
@@ -31,7 +38,6 @@ def validate_flight_order_constraints(
             status_code=status.HTTP_404_NOT_FOUND, detail="Related entity not found"
         )
 
-    crew = [member for member in crew_members if member is not None]
     today = date.today()
     if helicopter.inspection_valid_until and helicopter.inspection_valid_until < today:
         raise HTTPException(
@@ -55,5 +61,29 @@ def validate_flight_order_constraints(
     return helicopter, pilot, crew, crew_weight
 
 
-def assign_relationships(order: FlightOrder, crew: list[CrewMember]) -> None:
+def get_planned_operations(db: Session, planned_operation_ids: list[int]) -> list[PlannedOperation]:
+    if not planned_operation_ids:
+        return []
+
+    requested_ids = set(planned_operation_ids)
+    operation_by_id = {
+        operation.id: operation
+        for operation in db.scalars(
+            select(PlannedOperation).where(PlannedOperation.id.in_(requested_ids))
+        )
+    }
+    return [operation_by_id[operation_id] for operation_id in planned_operation_ids if operation_id in operation_by_id]
+
+
+def assign_relationships(
+    order: FlightOrder,
+    pilot: CrewMember,
+    helicopter: Helicopter,
+    crew: list[CrewMember],
+    planned_operations: list[PlannedOperation] | None = None,
+) -> None:
+    order.pilot = pilot
+    order.helicopter = helicopter
     order.crew_members = crew
+    if planned_operations is not None:
+        order.planned_operations = planned_operations

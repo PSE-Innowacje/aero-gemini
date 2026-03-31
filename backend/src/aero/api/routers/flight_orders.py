@@ -5,10 +5,13 @@ from aero.api.deps import require_roles
 from aero.core.database import get_db
 from aero.models.enums import UserRole
 from aero.models.flight_order import FlightOrder
-from aero.models.planned_operation import PlannedOperation
 from aero.repositories.base import BaseRepository
 from aero.schemas.flight_order import FlightOrderCreate, FlightOrderRead, FlightOrderUpdate
-from aero.services.flight_orders import assign_relationships, validate_flight_order_constraints
+from aero.services.flight_orders import (
+    assign_relationships,
+    get_planned_operations,
+    validate_flight_order_constraints,
+)
 
 router = APIRouter()
 
@@ -39,14 +42,13 @@ def create_flight_order(
             "crew_weight": crew_weight,
         }
     )
-    assign_relationships(order, crew)
-    if payload.planned_operation_ids:
-        ops: list[PlannedOperation] = []
-        for operation_id in payload.planned_operation_ids:
-            op = db.get(PlannedOperation, operation_id)
-            if op:
-                ops.append(op)
-        order.planned_operations = ops
+    assign_relationships(
+        order=order,
+        pilot=pilot,
+        helicopter=helicopter,
+        crew=crew,
+        planned_operations=get_planned_operations(db, payload.planned_operation_ids or []),
+    )
     db.commit()
     db.refresh(order)
     return FlightOrderRead.model_validate(order)
@@ -78,12 +80,7 @@ def update_flight_order(
     data = payload.model_dump(exclude_unset=True, exclude={"planned_operation_ids"})
     order = repo.update(order, data)
     if payload.planned_operation_ids is not None:
-        ops: list[PlannedOperation] = []
-        for operation_id in payload.planned_operation_ids:
-            op = db.get(PlannedOperation, operation_id)
-            if op:
-                ops.append(op)
-        order.planned_operations = ops
+        order.planned_operations = get_planned_operations(db, payload.planned_operation_ids)
         db.commit()
         db.refresh(order)
     return FlightOrderRead.model_validate(order)
