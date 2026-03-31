@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 from datetime import date
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, Enum, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aero.models.base import TimestampedModel
 from aero.models.enums import ResourceStatus
+
+if TYPE_CHECKING:
+    from aero.models.flight_order import FlightOrder
 
 
 class Helicopter(TimestampedModel):
@@ -19,3 +25,4 @@ class Helicopter(TimestampedModel):
     status: Mapped[ResourceStatus] = mapped_column(Enum(ResourceStatus), default=ResourceStatus.ACTIVE)
     inspection_valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     range_km: Mapped[int] = mapped_column(Integer, nullable=False)
+    flight_orders: Mapped[list[FlightOrder]] = relationship(back_populates="helicopter")
