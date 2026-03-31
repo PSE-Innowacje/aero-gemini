@@ -127,9 +127,10 @@ def _bbox(coords: list[LonLat]) -> list[float]:
     started_message="kml_parse_started",
     completed_message="kml_parse_completed",
 )
-def parse_kml_coordinates(kml_content: str) -> list[LonLat]:
+def parse_kml_coordinates(kml_content: str | bytes) -> list[LonLat]:
+    raw_kml = kml_content if isinstance(kml_content, bytes) else kml_content.encode("utf-8")
     try:
-        document = kml.KML.from_string(kml_content.encode("utf-8"))
+        document = kml.KML.from_string(raw_kml)
     except Exception as exc:  # noqa: BLE001
         logger.bind(event="kml_parse").exception("kml_parse_failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid KML content") from exc
@@ -169,7 +170,7 @@ def route_start_end(route_geometry: dict | None) -> tuple[dict[str, float] | Non
 )
 def normalize_route(
     route_geometry: dict | None,
-    kml_content: str | None,
+    kml_content: str | bytes | None,
 ) -> dict[str, object]:
     if route_geometry and kml_content:
         raise HTTPException(

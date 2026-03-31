@@ -132,7 +132,7 @@ async def create_planned_operation_from_kml_upload(
             detail="payload_json must be a valid JSON object",
         )
 
-    kml_content = (await kml_file.read()).decode("utf-8", errors="ignore")
+    kml_content = await kml_file.read()
     try:
         payload = PlannedOperationCreate.model_validate(
             {

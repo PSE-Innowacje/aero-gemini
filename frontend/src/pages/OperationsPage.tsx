@@ -39,10 +39,10 @@ const plannerEditableStatuses: OperationStatus[] = [1, 2, 3, 4, 5];
 const plannerResignationStatuses: OperationStatus[] = [1, 3, 4];
 
 const activityOptions = [
-  { value: 'ogledziny_wizualne', label: 'Ogledziny wizualne' },
+  { value: 'ogledziny_wizualne', label: 'Oględziny wizualne' },
   { value: 'skan_3d', label: 'Skan 3D' },
   { value: 'lokalizacja_awarii', label: 'Lokalizacja awarii' },
-  { value: 'zdjecia', label: 'Zdjecia' },
+  { value: 'zdjecia', label: 'Zdjęcia' },
   { value: 'patrolowanie', label: 'Patrolowanie' },
 ] as const;
 type ActivityValue = (typeof activityOptions)[number]['value'];
@@ -61,11 +61,25 @@ const activityValueAliases: Record<string, ActivityValue> = {
   zdjecia: 'zdjecia',
   zdjęcia: 'zdjecia',
   patrolowanie: 'patrolowanie',
+  survey: 'survey',
 };
 
 const normalizeActivityValue = (value: string): ActivityValue | null => {
   const normalized = value.trim().toLowerCase();
   return activityValueAliases[normalized] ?? null;
+};
+
+const normalizeRawActivity = (value: string): string => value.trim().toLowerCase();
+
+const toActivityLabel = (value: string): string => {
+  const known = normalizeActivityValue(value);
+  if (known) return activityLabelByValue[known];
+  const cleaned = value.trim();
+  if (!cleaned) return '-';
+  return cleaned
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^./, (char) => char.toUpperCase());
 };
 
 type OperationForm = {
@@ -75,7 +89,7 @@ type OperationForm = {
   proposedDateTo: string;
   plannedDateFrom: string;
   plannedDateTo: string;
-  activities: ActivityValue[];
+  activities: string[];
   extraInfo: string;
   contactsRaw: string;
   postRealizationNotes: string;
@@ -207,9 +221,6 @@ const OperationsPage: React.FC = () => {
   const openEdit = (operation: PlannedOperation) => {
     setEditing(operation);
     setKmlFile(null);
-    const allowedActivities = operation.activities
-      .map((item) => normalizeActivityValue(item))
-      .filter((item): item is ActivityValue => item !== null);
     setForm({
       projectCode: operation.projectCode,
       shortDescription: operation.shortDescription,
@@ -217,7 +228,9 @@ const OperationsPage: React.FC = () => {
       proposedDateTo: operation.proposedDateTo,
       plannedDateFrom: operation.plannedDateFrom,
       plannedDateTo: operation.plannedDateTo,
-      activities: allowedActivities,
+      activities: operation.activities
+        .map((item) => normalizeRawActivity(item))
+        .filter((item) => item.length > 0),
       extraInfo: operation.extraInfo,
       contactsRaw: operation.contacts.join(', '),
       postRealizationNotes: operation.postRealizationNotes,
@@ -227,12 +240,27 @@ const OperationsPage: React.FC = () => {
   };
 
   const toggleActivity = (activity: ActivityValue) => {
+    const normalized = normalizeRawActivity(activity);
     setForm((prev) => ({
       ...prev,
-      activities: prev.activities.includes(activity)
-        ? prev.activities.filter((item) => item !== activity)
-        : [...prev.activities, activity],
+      activities: prev.activities.includes(normalized)
+        ? prev.activities.filter((item) => item !== normalized)
+        : [...prev.activities, normalized],
     }));
+  };
+
+  const handleFormDialogChange = (openValue: boolean) => {
+    setOpen(openValue);
+    if (!openValue) {
+      setEditing(null);
+      setKmlFile(null);
+      setForm(emptyForm);
+    }
+  };
+
+  const handleDetailDialogChange = (openValue: boolean) => {
+    setDetailOpen(openValue);
+    if (!openValue) setViewing(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -325,7 +353,7 @@ const OperationsPage: React.FC = () => {
                 <TableCell>{operation.id}</TableCell>
                 <TableCell className="font-medium">{operation.projectCode}</TableCell>
                 <TableCell className="max-w-[280px] truncate">{operation.shortDescription}</TableCell>
-                <TableCell>{operation.activities.map((value) => normalizeActivityValue(value)).filter((value): value is ActivityValue => value !== null).map((value) => activityLabelByValue[value]).join(', ') || '-'}</TableCell>
+                <TableCell>{operation.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</TableCell>
                 <TableCell>{operation.distanceKm}</TableCell>
                 <TableCell><Badge className={statusColors[operation.status]}>{operationStatusLabels[operation.status]}</Badge></TableCell>
                 <TableCell className="flex gap-1">
@@ -347,7 +375,7 @@ const OperationsPage: React.FC = () => {
         </Table>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleFormDialogChange}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? 'Edytuj operacje' : 'Nowa operacja'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
@@ -443,7 +471,7 @@ const OperationsPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+      <Dialog open={detailOpen} onOpenChange={handleDetailDialogChange}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader><DialogTitle>Operacja {viewing?.projectCode}</DialogTitle></DialogHeader>
           {viewing && (
@@ -451,7 +479,7 @@ const OperationsPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Opis:</span> {viewing.shortDescription}</div>
                 <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{operationStatusLabels[viewing.status]}</Badge></div>
-                <div><span className="text-muted-foreground">Czynnosci:</span> {viewing.activities.map((value) => normalizeActivityValue(value)).filter((value): value is ActivityValue => value !== null).map((value) => activityLabelByValue[value]).join(', ') || '-'}</div>
+                <div><span className="text-muted-foreground">Czynnosci:</span> {viewing.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</div>
                 <div><span className="text-muted-foreground">Proponowane daty:</span> {viewing.proposedDateFrom || '-'} - {viewing.proposedDateTo || '-'}</div>
                 <div><span className="text-muted-foreground">Planowane daty:</span> {viewing.plannedDateFrom || '-'} - {viewing.plannedDateTo || '-'}</div>
                 <div><span className="text-muted-foreground">Liczba punktow:</span> {viewing.pointsCount}</div>

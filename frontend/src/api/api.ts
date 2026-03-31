@@ -17,19 +17,36 @@ const API_BASE_URL =
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 type LegacyActivityItem = string | { name?: unknown } | null | undefined;
 
-const operationActivityAliases: Record<string, string> = {
-  ogledziny_wizualne: 'ogledziny_wizualne',
-  'oględziny wizualne': 'ogledziny_wizualne',
-  ogledzinywizualne: 'ogledziny_wizualne',
-  skan_3d: 'skan_3d',
-  'skan 3d': 'skan_3d',
-  skan3d: 'skan_3d',
-  lokalizacja_awarii: 'lokalizacja_awarii',
-  'lokalizacja awarii': 'lokalizacja_awarii',
-  zdjecia: 'zdjecia',
-  zdjęcia: 'zdjecia',
-  patrolowanie: 'patrolowanie',
-};
+const operationActivityCanonicalValues = [
+  'ogledziny_wizualne',
+  'skan_3d',
+  'lokalizacja_awarii',
+  'zdjecia',
+  'patrolowanie',
+  'survey',
+] as const;
+
+type OperationActivityValue = (typeof operationActivityCanonicalValues)[number];
+
+const operationActivityAliasEntries: ReadonlyArray<readonly [string, OperationActivityValue]> = [
+  ['oględziny wizualne', 'ogledziny_wizualne'],
+  ['ogledzinywizualne', 'ogledziny_wizualne'],
+  ['skan 3d', 'skan_3d'],
+  ['skan3d', 'skan_3d'],
+  ['lokalizacja awarii', 'lokalizacja_awarii'],
+  ['zdjęcia', 'zdjecia'],
+];
+
+const operationActivityAliases: Record<string, OperationActivityValue> = (() => {
+  const aliases: Record<string, OperationActivityValue> = {};
+  operationActivityCanonicalValues.forEach((value) => {
+    aliases[value] = value;
+  });
+  operationActivityAliasEntries.forEach(([alias, value]) => {
+    aliases[alias] = value;
+  });
+  return aliases;
+})();
 
 const normalizeOperationActivity = (value: LegacyActivityItem): string | null => {
   const rawValue = typeof value === 'object' && value !== null && 'name' in value

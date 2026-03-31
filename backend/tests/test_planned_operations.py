@@ -92,6 +92,44 @@ def test_create_planned_operation_with_kml_upload(client, planner_token, authz) 
     assert body["distance_km"] > 0
 
 
+def test_create_planned_operation_with_utf16_kml_upload(client, planner_token, authz) -> None:
+    kml_content_utf16 = """<?xml version="1.0" encoding="UTF-16"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <Placemark>
+      <LineString>
+        <coordinates>17.0000,51.1000,0 17.0500,51.1200,0 17.1000,51.1500,0</coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>
+""".encode("utf-16")
+    payload_json = json.dumps(
+        {
+            "project_code": "PRJ-KML-UTF16",
+            "short_description": "Operation created from UTF-16 KML upload",
+            "activities": ["ogledziny_wizualne"],
+        }
+    )
+    response = client.post(
+        "/api/planned-operations/upload-kml",
+        headers=authz(planner_token),
+        data={"payload_json": payload_json},
+        files={
+            "kml_file": (
+                "route_utf16.kml",
+                kml_content_utf16,
+                "application/vnd.google-earth.kml+xml",
+            )
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["project_code"] == "PRJ-KML-UTF16"
+    assert body["points_count"] == 3
+    assert body["distance_km"] > 0
+
+
 def test_status_transition_requires_supervisor_role(client, planner_token, authz) -> None:
     created = _create_operation(client, planner_token, authz, "PRJ-ROLE")
     response = client.post(

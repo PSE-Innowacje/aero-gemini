@@ -46,7 +46,7 @@ class PlannedOperationCreate(ORMModel):
     project_code: str = Field(min_length=1, max_length=30)
     short_description: str = Field(min_length=1, max_length=100)
     route_geometry: RouteGeometry | None = None
-    kml_content: str | None = None
+    kml_content: str | bytes | None = None
     proposed_date_from: date | None = None
     proposed_date_to: date | None = None
     planned_date_from: date | None = None
@@ -85,7 +85,7 @@ class PlannedOperationUpdate(ORMModel):
     project_code: str | None = Field(default=None, min_length=1, max_length=30)
     short_description: str | None = Field(default=None, min_length=1, max_length=100)
     route_geometry: RouteGeometry | None = None
-    kml_content: str | None = None
+    kml_content: str | bytes | None = None
     proposed_date_from: date | None = None
     proposed_date_to: date | None = None
     planned_date_from: date | None = None
