@@ -174,7 +174,9 @@ const CrewPage: React.FC = () => {
             <div className="space-y-3 text-sm">
               <div><span className="text-muted-foreground">Członek załogi:</span> {previewing.name}</div>
               <div><span className="text-muted-foreground">Rola:</span> {previewing.role}</div>
-              <div><span className="text-muted-foreground">Numer licencji pilota:</span> {previewing.pilotLicenseNumber ?? 'Brak'}</div>
+              {previewing.role === 'PILOT' && (
+                <div><span className="text-muted-foreground">Numer licencji pilota:</span> {previewing.pilotLicenseNumber ?? 'Brak'}</div>
+              )}
               {previewing.role === 'PILOT' ? (
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Ważność licencji:</span>
