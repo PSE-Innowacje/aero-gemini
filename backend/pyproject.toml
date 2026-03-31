@@ -1,0 +1,71 @@
+[project]
+name = "aero"
+dynamic = ["version"]
+requires-python = "==3.12.8"
+authors = [
+    { name = "Paweł Mędyk", email = "medyk.pawel@gmail.com" },
+    { name = "Oskar Smoczyński", email = "oskar.smoczynski@gmail.com" },
+]
+
+dependencies = [
+    "fastapi",
+    "hatch-vcs",
+    "httpx",
+    "pendulum[test]",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "requests"
+    "sqlalchemy[asyncio]",
+    "uvicorn[standard]"
+]
+
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aero"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "node-and-timestamp"
+
+[tool.ruff]
+fix = true
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "lf"
+indent-style = "space"
+
+[tool.mypy]
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = false
+
+[tool.uv]
+dev-dependencies = [
+    "ruff",
+    "mypy",
+    "debugpy>=1.8.13",
+    "pytest>=8.3.5",
+    "pytest-bdd>=8.1.0",
+    "pytest-cov>=6.0",
+    "httpx>=0.28.1",
+    "pytest-html>=4.1.1",
+    "pytest-httpx>=0.35.0",
+    "pytest-mock>=3.15.1",
+    "pytest-asyncio>=1.3.0",
+]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests/aero"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

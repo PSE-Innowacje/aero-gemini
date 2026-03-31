@@ -1,0 +1,22 @@
+name: aero-dev
+
+services:
+  backend:
+    build:
+      context: ..
+      target: builder
+      dockerfile: .localdev/Dockerfile
+    container_name: "${COMPOSE_PROJECT_NAME}_backend"
+    platform: linux/amd64
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app:cached
+    command:
+      - /bin/bash
+      - -c
+      - |
+        uv sync
+        while sleep 1000; do :; done
