@@ -13,6 +13,8 @@ import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Trash2 } from 'lucide-react';
 
+const USER_FIELD_MAX_LENGTH = 100;
+
 const UsersPage: React.FC = () => {
   const qc = useQueryClient();
   const currentUserId = useAuthStore((state) => state.user?.id ?? null);
@@ -52,16 +54,22 @@ const UsersPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.firstName.length > 100 || form.lastName.length > 100 || form.email.length > 100) {
+    if (
+      form.firstName.length > USER_FIELD_MAX_LENGTH ||
+      form.lastName.length > USER_FIELD_MAX_LENGTH ||
+      form.email.length > USER_FIELD_MAX_LENGTH
+    ) {
       toast({
         title: 'Błąd walidacji',
-        description: 'Imię, nazwisko i e-mail mogą mieć maksymalnie 100 znaków.',
+        description: `Imię, nazwisko i e-mail mogą mieć maksymalnie ${USER_FIELD_MAX_LENGTH} znaków.`,
         variant: 'destructive',
       });
       return;
     }
     createMut.mutate(form);
   };
+
+  const limitTo100 = (value: string) => value.slice(0, USER_FIELD_MAX_LENGTH);
 
   const handleDelete = (id: string, name: string) => {
     if (id === currentUserId) {
@@ -128,9 +136,9 @@ const UsersPage: React.FC = () => {
               <Label htmlFor="user-first-name">Imię</Label>
               <Input
                 id="user-first-name"
-                maxLength={100}
+                maxLength={USER_FIELD_MAX_LENGTH}
                 value={form.firstName}
-                onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, firstName: limitTo100(e.target.value) }))}
                 required
               />
             </div>
@@ -138,9 +146,9 @@ const UsersPage: React.FC = () => {
               <Label htmlFor="user-last-name">Nazwisko</Label>
               <Input
                 id="user-last-name"
-                maxLength={100}
+                maxLength={USER_FIELD_MAX_LENGTH}
                 value={form.lastName}
-                onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, lastName: limitTo100(e.target.value) }))}
                 required
               />
             </div>
@@ -149,9 +157,9 @@ const UsersPage: React.FC = () => {
               <Input
                 id="user-email"
                 type="email"
-                maxLength={100}
+                maxLength={USER_FIELD_MAX_LENGTH}
                 value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, email: limitTo100(e.target.value) }))}
                 required
               />
             </div>
