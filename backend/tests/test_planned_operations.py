@@ -95,3 +95,85 @@ def test_planned_operations_status_filter(client, planner_token, supervisor_toke
     assert items[0]["id"] == second["id"]
     assert items[0]["status"] == 2
     assert items[0]["id"] != first["id"]
+
+
+def test_create_planned_operation_forbidden_for_pilot(client, pilot_user_token, authz) -> None:
+    response = client.post(
+        "/api/planned-operations",
+        headers=authz(pilot_user_token),
+        json={
+            "project_code": "PRJ-PILOT",
+            "short_description": "Pilot cannot create",
+            "kml_file_path": None,
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Forbidden for current role"
+
+
+def test_get_planned_operations_requires_authentication(client) -> None:
+    response = client.get("/api/planned-operations")
+    assert response.status_code == 401
+
+
+def test_get_planned_operations_validation_error_for_invalid_status_filter(client, planner_token, authz) -> None:
+    response = client.get("/api/planned-operations?status_filter=9", headers=authz(planner_token))
+    assert response.status_code == 422
+
+
+def test_patch_planned_operation_success(client, planner_token, authz) -> None:
+    created = _create_operation(client, planner_token, authz, "PRJ-PATCH")
+    response = client.patch(
+        f"/api/planned-operations/{created['id']}",
+        headers=authz(planner_token),
+        json={"short_description": "Updated description", "extra_info": "Updated"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == created["id"]
+    assert body["short_description"] == "Updated description"
+
+
+def test_patch_planned_operation_not_found(client, planner_token, authz) -> None:
+    response = client.patch(
+        "/api/planned-operations/9999",
+        headers=authz(planner_token),
+        json={"short_description": "Missing"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Planned operation not found"
+
+
+def test_patch_planned_operation_forbidden_for_pilot(client, planner_token, pilot_user_token, authz) -> None:
+    created = _create_operation(client, planner_token, authz, "PRJ-FORBID")
+    response = client.patch(
+        f"/api/planned-operations/{created['id']}",
+        headers=authz(pilot_user_token),
+        json={"short_description": "Pilot update attempt"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Forbidden for current role"
+
+
+def test_change_operation_status_not_found(client, supervisor_token, authz) -> None:
+    response = client.post(
+        "/api/planned-operations/9999/status",
+        headers=authz(supervisor_token),
+        json={"status": 2},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Planned operation not found"
+
+
+def test_put_planned_operation_not_allowed(client, planner_token, authz) -> None:
+    response = client.put(
+        "/api/planned-operations/1",
+        headers=authz(planner_token),
+        json={"project_code": "PRJ-PUT"},
+    )
+    assert response.status_code == 405
+
+
+def test_delete_planned_operation_not_allowed(client, planner_token, authz) -> None:
+    response = client.delete("/api/planned-operations/1", headers=authz(planner_token))
+    assert response.status_code == 405
