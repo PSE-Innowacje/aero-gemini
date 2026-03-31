@@ -187,3 +187,6 @@ infra/secrets/**
 #  But keep the templates (directory and content)
 !infra/secrets/templates/
 !infra/secrets/templates/**
+
+# Logging
+app.jsonl
