@@ -9,7 +9,7 @@ from loguru import logger
 from aero.api.router import api_router
 from aero.core.config import settings
 from aero.core.database import Base, engine
-from aero.core.logging import configure_logging
+from aero.core.logging import configure_logging, log_duration
 from aero.models import audit, crew_member, flight_order, helicopter, landing_site, planned_operation, user  # noqa: F401
 
 
@@ -92,10 +92,6 @@ def health_check() -> dict[str, str]:
 
 
 @app.on_event("startup")
+@log_duration(event="startup", started_message="startup_begin", completed_message="startup_complete")
 def on_startup() -> None:
-    started = perf_counter()
-    logger.bind(event="startup").info("startup_begin")
     Base.metadata.create_all(bind=engine)
-    logger.bind(event="startup", duration_ms=round((perf_counter() - started) * 1000, 2)).info(
-        "startup_complete"
-    )
