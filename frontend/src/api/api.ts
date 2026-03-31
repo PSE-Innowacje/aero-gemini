@@ -115,7 +115,10 @@ const toUiHelicopter = (h: any): Helicopter => ({
   id: String(h.id),
   registration: h.registration_number,
   type: h.type,
+  description: h.description ?? '',
+  maxCrew: Number(h.max_crew ?? 1),
   status: h.status === 'active' ? 'active' : 'inactive',
+  inspectionValidUntil: h.inspection_valid_until ?? null,
   maxRange: h.range_km,
   maxWeight: h.max_crew_weight,
 });
@@ -237,11 +240,11 @@ export const createHelicopter = async (data: Omit<Helicopter, 'id'>): Promise<He
   const payload = {
     registration_number: data.registration,
     type: data.type,
-    description: null,
-    max_crew: 4,
+    description: data.description || null,
+    max_crew: data.maxCrew,
     max_crew_weight: data.maxWeight,
     status: data.status === 'active' ? 'active' : 'inactive',
-    inspection_valid_until: data.status === 'active' ? new Date().toISOString().slice(0, 10) : null,
+    inspection_valid_until: data.status === 'active' ? data.inspectionValidUntil : null,
     range_km: data.maxRange,
   };
   return toUiHelicopter(await request('/helicopters', 'POST', payload));
@@ -250,11 +253,14 @@ export const updateHelicopter = async (id: string, data: Partial<Helicopter>): P
   const payload: Record<string, unknown> = {};
   if (data.registration !== undefined) payload.registration_number = data.registration;
   if (data.type !== undefined) payload.type = data.type;
+  if (data.description !== undefined) payload.description = data.description || null;
+  if (data.maxCrew !== undefined) payload.max_crew = data.maxCrew;
   if (data.maxWeight !== undefined) payload.max_crew_weight = data.maxWeight;
   if (data.maxRange !== undefined) payload.range_km = data.maxRange;
+  if (data.inspectionValidUntil !== undefined) payload.inspection_valid_until = data.inspectionValidUntil;
   if (data.status !== undefined) {
     payload.status = data.status === 'active' ? 'active' : 'inactive';
-    payload.inspection_valid_until = data.status === 'active' ? new Date().toISOString().slice(0, 10) : null;
+    if (data.status !== 'active') payload.inspection_valid_until = null;
   }
   return toUiHelicopter(await request(`/helicopters/${id}`, 'PATCH', payload));
 };

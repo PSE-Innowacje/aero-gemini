@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil } from 'lucide-react';
@@ -21,7 +22,16 @@ const HelicoptersPage: React.FC = () => {
   const { data: helicopters = [], isLoading } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Helicopter | null>(null);
-  const [form, setForm] = useState({ registration: '', type: '', status: 'active' as Helicopter['status'], maxRange: 0, maxWeight: 0 });
+  const [form, setForm] = useState({
+    registration: '',
+    type: '',
+    description: '',
+    maxCrew: 1,
+    status: 'active' as Helicopter['status'],
+    inspectionValidUntil: '',
+    maxRange: 0,
+    maxWeight: 0,
+  });
 
   const createMut = useMutation({
     mutationFn: (d: Omit<Helicopter, 'id'>) => createHelicopter(d),
@@ -35,13 +45,47 @@ const HelicoptersPage: React.FC = () => {
     onError: (error: Error) => { toast({ title: 'Błąd aktualizacji', description: error.message, variant: 'destructive' }); },
   });
 
-  const openCreate = () => { setEditing(null); setForm({ registration: '', type: '', status: 'active', maxRange: 0, maxWeight: 0 }); setOpen(true); };
-  const openEdit = (h: Helicopter) => { setEditing(h); setForm({ registration: h.registration, type: h.type, status: h.status, maxRange: h.maxRange, maxWeight: h.maxWeight }); setOpen(true); };
+  const openCreate = () => {
+    setEditing(null);
+    setForm({
+      registration: '',
+      type: '',
+      description: '',
+      maxCrew: 1,
+      status: 'active',
+      inspectionValidUntil: '',
+      maxRange: 0,
+      maxWeight: 0,
+    });
+    setOpen(true);
+  };
+  const openEdit = (h: Helicopter) => {
+    setEditing(h);
+    setForm({
+      registration: h.registration,
+      type: h.type,
+      description: h.description ?? '',
+      maxCrew: h.maxCrew,
+      status: h.status,
+      inspectionValidUntil: h.inspectionValidUntil ? h.inspectionValidUntil.split('T')[0] : '',
+      maxRange: h.maxRange,
+      maxWeight: h.maxWeight,
+    });
+    setOpen(true);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) updateMut.mutate({ id: editing.id, ...form });
-    else createMut.mutate(form);
+    if (form.status === 'active' && !form.inspectionValidUntil) {
+      toast({ title: 'Brak danych', description: 'Data ważności przeglądu jest wymagana dla aktywnego helikoptera.', variant: 'destructive' });
+      return;
+    }
+    const payload = {
+      ...form,
+      inspectionValidUntil: form.status === 'active' ? form.inspectionValidUntil : null,
+    };
+    if (editing) updateMut.mutate({ id: editing.id, ...payload });
+    else createMut.mutate(payload);
   };
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
@@ -58,7 +102,10 @@ const HelicoptersPage: React.FC = () => {
             <TableRow>
               <TableHead>Rejestracja</TableHead>
               <TableHead>Typ</TableHead>
+              <TableHead>Opis</TableHead>
+              <TableHead>Maks. liczba załogi</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Ważność przeglądu</TableHead>
               <TableHead>Zasięg (km)</TableHead>
               <TableHead>Maks. masa (kg)</TableHead>
               <TableHead className="w-16" />
@@ -69,7 +116,10 @@ const HelicoptersPage: React.FC = () => {
               <TableRow key={h.id}>
                 <TableCell className="font-medium">{h.registration}</TableCell>
                 <TableCell>{h.type}</TableCell>
-                <TableCell><Badge className={statusColors[h.status]}>{h.status}</Badge></TableCell>
+                <TableCell>{h.description || '-'}</TableCell>
+                <TableCell>{h.maxCrew}</TableCell>
+                <TableCell><Badge className={statusColors[h.status]}>{h.status === 'active' ? 'Aktywny' : 'Nieaktywny'}</Badge></TableCell>
+                <TableCell>{h.inspectionValidUntil ? h.inspectionValidUntil.split('T')[0] : '-'}</TableCell>
                 <TableCell>{h.maxRange}</TableCell>
                 <TableCell>{h.maxWeight}</TableCell>
                 <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(h)}><Pencil className="h-4 w-4" /></Button></TableCell>
@@ -83,17 +133,99 @@ const HelicoptersPage: React.FC = () => {
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? 'Edytuj helikopter' : 'Nowy helikopter'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input placeholder="Rejestracja" value={form.registration} onChange={e => setForm(f => ({ ...f, registration: e.target.value }))} required />
-            <Input placeholder="Typ" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} required />
-            <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v as Helicopter['status'] }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input type="number" placeholder="Zasięg (km)" value={form.maxRange || ''} onChange={e => setForm(f => ({ ...f, maxRange: Number(e.target.value) }))} required />
-            <Input type="number" placeholder="Maks. masa (kg)" value={form.maxWeight || ''} onChange={e => setForm(f => ({ ...f, maxWeight: Number(e.target.value) }))} required />
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-registration">Rejestracja</Label>
+              <Input
+                id="helicopter-registration"
+                placeholder="Rejestracja"
+                value={form.registration}
+                onChange={e => setForm(f => ({ ...f, registration: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-type">Typ</Label>
+              <Input
+                id="helicopter-type"
+                placeholder="Typ"
+                value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-description">Opis</Label>
+              <Input
+                id="helicopter-description"
+                placeholder="Opis"
+                maxLength={100}
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-max-crew">Maks. liczba członków załogi</Label>
+              <Input
+                id="helicopter-max-crew"
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                value={form.maxCrew || ''}
+                onChange={e => setForm(f => ({ ...f, maxCrew: Number(e.target.value) }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-status">Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={v => setForm(f => ({
+                  ...f,
+                  status: v as Helicopter['status'],
+                  inspectionValidUntil: v === 'active' ? f.inspectionValidUntil : '',
+                }))}
+              >
+                <SelectTrigger id="helicopter-status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Aktywny</SelectItem>
+                  <SelectItem value="inactive">Nieaktywny</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-inspection">Data ważności przeglądu</Label>
+              <Input
+                id="helicopter-inspection"
+                type="date"
+                value={form.inspectionValidUntil}
+                onChange={e => setForm(f => ({ ...f, inspectionValidUntil: e.target.value }))}
+                required={form.status === 'active'}
+                disabled={form.status !== 'active'}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-range">Zasięg (km)</Label>
+              <Input
+                id="helicopter-range"
+                type="number"
+                placeholder="Zasięg (km)"
+                value={form.maxRange || ''}
+                onChange={e => setForm(f => ({ ...f, maxRange: Number(e.target.value) }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="helicopter-max-weight">Maks. masa (kg)</Label>
+              <Input
+                id="helicopter-max-weight"
+                type="number"
+                placeholder="Maks. masa (kg)"
+                value={form.maxWeight || ''}
+                onChange={e => setForm(f => ({ ...f, maxWeight: Number(e.target.value) }))}
+                required
+              />
+            </div>
             <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
           </form>
         </DialogContent>

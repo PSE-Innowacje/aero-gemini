@@ -13,7 +13,10 @@ export interface Helicopter {
   id: string;
   registration: string;
   type: string;
+  description: string;
+  maxCrew: number;
   status: 'active' | 'maintenance' | 'inactive';
+  inspectionValidUntil?: string | null;
   maxRange: number;
   maxWeight: number;
 }
