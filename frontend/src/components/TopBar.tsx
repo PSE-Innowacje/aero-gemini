@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut, Moon, Sun } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/hooks/use-theme';
+import { getUserRoleLabel } from '@/lib/userRoles';
 
 const TopBar: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -22,7 +23,7 @@ const TopBar: React.FC = () => {
         {user && (
           <>
             <span className="text-sm text-muted-foreground">{user.name}</span>
-            <Badge variant="secondary">{user.role}</Badge>
+            <Badge variant="secondary">{getUserRoleLabel(user.role)}</Badge>
             <Button variant="ghost" size="icon" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>

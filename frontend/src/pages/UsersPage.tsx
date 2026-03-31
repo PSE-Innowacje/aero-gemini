@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/hooks/use-toast';
+import { getUserRoleLabel } from '@/lib/userRoles';
 import { Plus, Trash2 } from 'lucide-react';
 
 const USER_FIELD_MAX_LENGTH = 100;
@@ -106,7 +107,7 @@ const UsersPage: React.FC = () => {
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell>{u.email}</TableCell>
-                <TableCell><Badge variant="secondary">{u.role}</Badge></TableCell>
+                <TableCell><Badge variant="secondary">{getUserRoleLabel(u.role)}</Badge></TableCell>
                 <TableCell>
                   <Button
                     type="button"
@@ -183,10 +184,10 @@ const UsersPage: React.FC = () => {
               <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as Role }))}>
                 <SelectTrigger id="user-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ADMIN">Administrator</SelectItem>
-                  <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
-                  <SelectItem value="PLANNER">Planner</SelectItem>
-                  <SelectItem value="PILOT">Pilot</SelectItem>
+                  <SelectItem value="ADMIN">{getUserRoleLabel('ADMIN')}</SelectItem>
+                  <SelectItem value="SUPERVISOR">{getUserRoleLabel('SUPERVISOR')}</SelectItem>
+                  <SelectItem value="PLANNER">{getUserRoleLabel('PLANNER')}</SelectItem>
+                  <SelectItem value="PILOT">{getUserRoleLabel('PILOT')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
