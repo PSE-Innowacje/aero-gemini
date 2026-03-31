@@ -8,16 +8,18 @@ authors = [
 ]
 
 dependencies = [
+    "email-validator>=2.3.0",
     "fastapi",
     "hatch-vcs",
     "httpx",
     "pendulum[test]",
     "pydantic",
     "pydantic-settings",
+    "pyjwt>=2.12.1",
     "python-dotenv",
     "requests",
     "sqlalchemy[asyncio]",
-    "uvicorn[standard]"
+    "uvicorn[standard]",
 ]
 
 
