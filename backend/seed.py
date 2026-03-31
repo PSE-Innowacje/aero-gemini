@@ -20,6 +20,7 @@ def main() -> None:
     from aero.models.landing_site import LandingSite  # noqa: WPS433
     from aero.models.planned_operation import PlannedOperation  # noqa: WPS433
     from aero.models.user import User  # noqa: WPS433
+    from aero.services.planned_operations import normalize_route  # noqa: WPS433
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -183,7 +184,14 @@ def main() -> None:
                 "planned_date_to": today + timedelta(days=4),
                 "activities": [{"name": "Inspection", "duration_h": 2}],
                 "extra_info": "Morning slot preferred",
-                "distance_km": 120.0,
+                "route_geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                        [21.0122, 52.2297],
+                        [20.8000, 52.3000],
+                        [20.5000, 52.3500],
+                    ],
+                },
                 "status": WorkflowStatus.DRAFT,
                 "contacts": ["contact@example.com"],
             },
@@ -196,7 +204,14 @@ def main() -> None:
                 "planned_date_to": today + timedelta(days=7),
                 "activities": [{"name": "Thermal scan", "duration_h": 3}],
                 "extra_info": "Coordinate with site supervisor",
-                "distance_km": 180.0,
+                "route_geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                        [19.9450, 50.0647],
+                        [19.3000, 50.6000],
+                        [18.6466, 54.3520],
+                    ],
+                },
                 "status": WorkflowStatus.SUBMITTED,
                 "contacts": ["thermal@example.com"],
             },
@@ -209,7 +224,14 @@ def main() -> None:
                 "planned_date_to": today + timedelta(days=11),
                 "activities": [{"name": "Survey", "duration_h": 4}],
                 "extra_info": "High-priority compliance mission",
-                "distance_km": 240.0,
+                "route_geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                        [16.9252, 52.4064],
+                        [17.8000, 52.0000],
+                        [19.9450, 50.0647],
+                    ],
+                },
                 "status": WorkflowStatus.APPROVED,
                 "contacts": ["ops@example.com"],
             },
@@ -218,18 +240,24 @@ def main() -> None:
         for op_data in operation_specs:
             code = op_data["project_code"]
             operation = db.scalar(select(PlannedOperation).where(PlannedOperation.project_code == code))
+            normalized_route = normalize_route(
+                route_geometry=op_data["route_geometry"],
+                kml_content=None,
+            )
             if not operation:
                 operation = PlannedOperation(
                     project_code=op_data["project_code"],
                     short_description=op_data["short_description"],
-                    kml_file_path=None,
+                    route_geometry=normalized_route["route_geometry"],
+                    route_bbox=normalized_route["route_bbox"],
+                    points_count=normalized_route["points_count"],
                     proposed_date_from=op_data["proposed_date_from"],
                     proposed_date_to=op_data["proposed_date_to"],
                     planned_date_from=op_data["planned_date_from"],
                     planned_date_to=op_data["planned_date_to"],
                     activities=op_data["activities"],
                     extra_info=op_data["extra_info"],
-                    distance_km=op_data["distance_km"],
+                    distance_km=normalized_route["distance_km"],
                     status=op_data["status"],
                     created_by=admin.id,
                     contacts=op_data["contacts"],
@@ -237,6 +265,11 @@ def main() -> None:
                 )
                 db.add(operation)
                 db.flush()
+            else:
+                operation.route_geometry = normalized_route["route_geometry"]
+                operation.route_bbox = normalized_route["route_bbox"]
+                operation.points_count = normalized_route["points_count"]
+                operation.distance_km = normalized_route["distance_km"]
             operations_by_code[code] = operation
 
         # Flight orders tying together helicopters, crew, sites and operations
