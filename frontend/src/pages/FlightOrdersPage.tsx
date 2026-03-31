@@ -43,10 +43,12 @@ const FlightOrdersPage: React.FC = () => {
   const createMut = useMutation({
     mutationFn: (d: Omit<FlightOrder, 'id'>) => createFlightOrder(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['flightOrders'] }); setOpen(false); toast({ title: 'Dodano zlecenie' }); },
+    onError: (error: Error) => { toast({ title: 'Nie udało się dodać zlecenia', description: error.message, variant: 'destructive' }); },
   });
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<FlightOrder> & { id: string }) => updateFlightOrder(id, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['flightOrders'] }); setOpen(false); toast({ title: 'Zaktualizowano' }); },
+    onError: (error: Error) => { toast({ title: 'Nie udało się zaktualizować zlecenia', description: error.message, variant: 'destructive' }); },
   });
 
   const filtered = statusFilter === 'all' ? orders : orders.filter(o => o.status === Number(statusFilter));

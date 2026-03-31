@@ -275,8 +275,8 @@ def main() -> None:
         # Flight orders tying together helicopters, crew, sites and operations
         flight_order_specs = [
             {
-                "planned_start": None,
-                "planned_end": None,
+                "planned_start": today + timedelta(days=1) + timedelta(hours=8),
+                "planned_end": today + timedelta(days=1) + timedelta(hours=12),
                 "pilot_email": "pilot@example.com",
                 "helicopter_reg": "SP-HELI1",
                 "crew_emails": ["observer@example.com", "crew1@example.com"],
@@ -287,8 +287,8 @@ def main() -> None:
                 "status": WorkflowStatus.DRAFT,
             },
             {
-                "planned_start": None,
-                "planned_end": None,
+                "planned_start": today + timedelta(days=1) + timedelta(hours=13),
+                "planned_end": today + timedelta(days=1) + timedelta(hours=17),
                 "pilot_email": "pilot2@example.com",
                 "helicopter_reg": "SP-HELI2",
                 "crew_emails": ["crew2@example.com"],
