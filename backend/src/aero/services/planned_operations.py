@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from datetime import date
 from itertools import pairwise
 from pathlib import Path
+from time import perf_counter
 
 from fastkml import kml
 from fastapi import HTTPException, status
@@ -58,6 +59,8 @@ def _iter_geometry_coords(geometry: object) -> Iterable[tuple[float, float]]:
 def parse_kml_distance(path: str | None) -> float:
     if not path:
         return 0.0
+    started = perf_counter()
+    logger.bind(event="kml_parse", kml_file_path=path).info("kml_parse_started")
     try:
         document = kml.KML.from_string(Path(path).read_bytes())
     except Exception:  # noqa: BLE001
@@ -71,20 +74,62 @@ def parse_kml_distance(path: str | None) -> float:
             geometry = geometry()
         coords.extend(_iter_geometry_coords(geometry))
 
-    return _distance_km(coords)
+    distance_km = _distance_km(coords)
+    logger.bind(
+        event="kml_parse",
+        kml_file_path=path,
+        coordinates_count=len(coords),
+        distance_km=distance_km,
+        duration_ms=round((perf_counter() - started) * 1000, 2),
+    ).info("kml_parse_completed")
+    return distance_km
 
 
 def enforce_status_transition(current: WorkflowStatus, new: WorkflowStatus, user: User) -> None:
+    started = perf_counter()
+    logger.bind(
+        event="workflow_transition",
+        current_status=current.value,
+        requested_status=new.value,
+        user_id=user.id,
+        user_role=user.role.value,
+    ).info("transition_check_started")
     if current == new:
+        logger.bind(
+            event="workflow_transition",
+            current_status=current.value,
+            requested_status=new.value,
+            user_id=user.id,
+            duration_ms=round((perf_counter() - started) * 1000, 2),
+        ).debug("transition_noop")
         return
     allowed = ALLOWED_TRANSITIONS.get(current, set())
     if new not in allowed:
-        logger.warning("Invalid workflow transition: {} -> {}", current, new)
+        logger.bind(
+            event="workflow_transition",
+            current_status=current.value,
+            requested_status=new.value,
+            user_id=user.id,
+            user_role=user.role.value,
+        ).warning("transition_check_failed_invalid_transition")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status transition")
     if current == WorkflowStatus.DRAFT and new in {WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED}:
         if user.role not in {UserRole.SUPERVISOR, UserRole.ADMIN}:
-            logger.warning("Unauthorized transition attempt by role: {}", user.role)
+            logger.bind(
+                event="workflow_transition",
+                current_status=current.value,
+                requested_status=new.value,
+                user_id=user.id,
+                user_role=user.role.value,
+            ).warning("transition_check_failed_forbidden_role")
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Supervisor role required")
+    logger.bind(
+        event="workflow_transition",
+        current_status=current.value,
+        requested_status=new.value,
+        user_id=user.id,
+        duration_ms=round((perf_counter() - started) * 1000, 2),
+    ).info("transition_check_completed")
 
 
 def add_audit(
@@ -95,6 +140,12 @@ def add_audit(
     before: dict | None,
     after: dict | None,
 ) -> None:
+    logger.bind(
+        event="audit",
+        planned_operation_id=planned_operation_id,
+        action=action,
+        actor_user_id=actor_user_id,
+    ).debug("audit_insert_started")
     db.add(
         PlannedOperationAudit(
             planned_operation_id=planned_operation_id,
@@ -104,10 +155,23 @@ def add_audit(
             after_snapshot=after,
         )
     )
+    logger.bind(
+        event="audit",
+        planned_operation_id=planned_operation_id,
+        action=action,
+        actor_user_id=actor_user_id,
+    ).debug("audit_insert_completed")
 
 
 def validate_edit_window(operation: PlannedOperation, user: User) -> None:
     if operation.status in {WorkflowStatus.DONE, WorkflowStatus.REJECTED} and user.role != UserRole.ADMIN:
+        logger.bind(
+            event="edit_window",
+            operation_id=operation.id,
+            operation_status=operation.status.value,
+            user_id=user.id,
+            user_role=user.role.value,
+        ).warning("edit_window_rejected")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only ADMIN can edit finalized operation")
 
 
