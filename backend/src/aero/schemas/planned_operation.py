@@ -23,8 +23,6 @@ ALLOWED_ACTIVITY_NAMES = {
     "lokalizacja_awarii",
     "zdjecia",
     "patrolowanie",
-    # Backward compatible value used in legacy tests/seed data.
-    "survey",
 }
 
 
