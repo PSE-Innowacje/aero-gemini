@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCrew, createCrewMember, updateCrewMember } from '@/api/api';
-import type { CrewMember, Role } from '@/types';
+import type { CrewMember, CrewRole } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,7 @@ const CrewPage: React.FC = () => {
   const { data: crew = [], isLoading } = useQuery({ queryKey: ['crew'], queryFn: fetchCrew });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CrewMember | null>(null);
-  const [form, setForm] = useState({ email: '', name: '', role: 'PILOT' as Role, licenseExpiry: '', weight: 0 });
+  const [form, setForm] = useState({ email: '', name: '', role: 'PILOT' as CrewRole, licenseExpiry: '', weight: 0 });
 
   const createMut = useMutation({
     mutationFn: (d: Omit<CrewMember, 'id'>) => createCrewMember(d),
@@ -83,13 +83,12 @@ const CrewPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input placeholder="Imię i nazwisko" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
             <Input type="email" placeholder="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
-            <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as Role }))}>
+            <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as CrewRole }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="ADMIN">Admin</SelectItem>
                 <SelectItem value="PILOT">Pilot</SelectItem>
-                <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
-                <SelectItem value="PLANNER">Planner</SelectItem>
+                <SelectItem value="OBSERVER">Observer</SelectItem>
+                <SelectItem value="CREW">Crew</SelectItem>
               </SelectContent>
             </Select>
             <Input type="date" value={form.licenseExpiry} onChange={e => setForm(f => ({ ...f, licenseExpiry: e.target.value }))} required />

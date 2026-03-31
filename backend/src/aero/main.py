@@ -2,6 +2,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from loguru import logger
 
@@ -70,6 +71,13 @@ def create_app() -> FastAPI:
             configured_minutes=settings.access_token_expire_minutes,
         ).warning("long_lived_access_tokens_configured")
     app.middleware("http")(request_observability_middleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:8080", "http://127.0.0.1:8080"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(api_router, prefix="/api")
     return app
 

@@ -1,4 +1,5 @@
 export type Role = 'ADMIN' | 'PLANNER' | 'SUPERVISOR' | 'PILOT';
+export type CrewRole = 'PILOT' | 'OBSERVER' | 'CREW';
 
 export interface User {
   id: string;
@@ -21,7 +22,7 @@ export interface CrewMember {
   id: string;
   email: string;
   name: string;
-  role: Role;
+  role: CrewRole;
   licenseExpiry: string;
   weight: number;
 }

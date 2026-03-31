@@ -1,15 +1,13 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchUsers } from '@/api/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
-const mockUsers = [
-  { id: '1', email: 'admin@heli.app', name: 'Jan Kowalski', role: 'ADMIN' },
-  { id: '2', email: 'planner@heli.app', name: 'Anna Nowak', role: 'PLANNER' },
-  { id: '3', email: 'supervisor@heli.app', name: 'Piotr Wiśniewski', role: 'SUPERVISOR' },
-  { id: '4', email: 'pilot@heli.app', name: 'Marek Zieliński', role: 'PILOT' },
-];
-
 const UsersPage: React.FC = () => {
+  const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+  if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-foreground">Użytkownicy</h1>
@@ -23,7 +21,7 @@ const UsersPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockUsers.map(u => (
+            {users.map(u => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell>{u.email}</TableCell>

@@ -13,7 +13,6 @@ import { Plus, Pencil } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   active: 'bg-green-100 text-green-800',
-  maintenance: 'bg-yellow-100 text-yellow-800',
   inactive: 'bg-red-100 text-red-800',
 };
 
@@ -88,7 +87,6 @@ const HelicoptersPage: React.FC = () => {
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>

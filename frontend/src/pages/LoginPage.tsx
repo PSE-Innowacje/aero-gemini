@@ -45,13 +45,6 @@ const LoginPage: React.FC = () => {
               {loading ? 'Logowanie...' : 'Zaloguj się'}
             </Button>
           </form>
-          <div className="mt-6 p-3 rounded-md bg-muted text-xs text-muted-foreground space-y-1">
-            <p className="font-medium">Demo accounts:</p>
-            <p>admin@heli.app / admin123</p>
-            <p>planner@heli.app / planner123</p>
-            <p>supervisor@heli.app / super123</p>
-            <p>pilot@heli.app / pilot123</p>
-          </div>
         </CardContent>
       </Card>
     </div>

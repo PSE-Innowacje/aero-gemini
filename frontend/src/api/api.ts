@@ -1,84 +1,222 @@
-import type { Helicopter, CrewMember, LandingSite, PlannedOperation, FlightOrder } from '@/types';
-import { helicopters, crewMembers, landingSites, plannedOperations, flightOrders } from './mockData';
+import type { CrewMember, FlightOrder, Helicopter, LandingSite, PlannedOperation, Role, User } from '@/types';
+import { getApiToken } from '@/api/token';
 
-const delay = (ms = 300) => new Promise(r => setTimeout(r, ms));
+const API_BASE_URL = 'http://localhost:8000/api';
+
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
+
+const withAuthHeaders = (): HeadersInit => {
+  const token = getApiToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+async function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...withAuthHeaders(),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) {
+    const fallback = `Request failed (${response.status})`;
+    let message = fallback;
+    try {
+      const payload = await response.json();
+      message = payload?.detail || payload?.message || fallback;
+    } catch {
+      message = fallback;
+    }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
+}
+
+const toUiHelicopter = (h: any): Helicopter => ({
+  id: String(h.id),
+  registration: h.registration_number,
+  type: h.type,
+  status: h.status === 'active' ? 'active' : 'inactive',
+  maxRange: h.range_km,
+  maxWeight: h.max_crew_weight,
+});
+
+const toUiCrew = (c: any): CrewMember => ({
+  id: String(c.id),
+  email: c.email,
+  name: `${c.first_name} ${c.last_name}`.trim(),
+  role: c.role,
+  licenseExpiry: c.license_valid_until ?? c.training_valid_until,
+  weight: c.weight,
+});
+
+const toUiSite = (s: any): LandingSite => ({
+  id: String(s.id),
+  name: s.name,
+  latitude: s.latitude,
+  longitude: s.longitude,
+  elevation: 0,
+  status: 'active',
+});
+
+const toUiOperation = (o: any): PlannedOperation => ({
+  id: String(o.id),
+  projectCode: o.project_code,
+  activities: Array.isArray(o.activities) ? o.activities.map((v: any) => String(v?.name ?? v)) : [],
+  startDate: o.planned_date_from ?? o.proposed_date_from ?? '',
+  endDate: o.planned_date_to ?? o.proposed_date_to ?? '',
+  status: o.status,
+  description: o.short_description,
+});
+
+const toUiOrder = (o: any): FlightOrder => ({
+  id: String(o.id),
+  startTime: o.planned_start ?? '',
+  helicopterId: String(o.helicopter_id),
+  pilotId: String(o.pilot_id),
+  crewIds: Array.isArray(o.crew_ids) ? o.crew_ids.map(String) : [],
+  landingSiteIds: [String(o.start_site_id), String(o.end_site_id)].filter(Boolean),
+  operationIds: Array.isArray(o.planned_operation_ids) ? o.planned_operation_ids.map(String) : [],
+  status: o.status,
+  startSiteId: String(o.start_site_id),
+  endSiteId: String(o.end_site_id),
+});
+
+// Auth
+export const loginRequest = (email: string, password: string) =>
+  request<{ access_token: string; token_type: string; role: Role }>('/auth/login', 'POST', { email, password });
+
+// Users
+export const fetchUsers = async (): Promise<User[]> => {
+  const users = await request<any[]>('/users');
+  return users.map((u) => ({
+    id: String(u.id),
+    email: u.email,
+    name: `${u.first_name} ${u.last_name}`.trim(),
+    role: u.role,
+  }));
+};
 
 // Helicopters
-export const fetchHelicopters = async (): Promise<Helicopter[]> => { await delay(); return [...helicopters]; };
+export const fetchHelicopters = async (): Promise<Helicopter[]> => (await request<any[]>('/helicopters')).map(toUiHelicopter);
 export const createHelicopter = async (data: Omit<Helicopter, 'id'>): Promise<Helicopter> => {
-  await delay();
-  const item = { ...data, id: String(helicopters.length + 1) };
-  helicopters.push(item);
-  return item;
+  const payload = {
+    registration_number: data.registration,
+    type: data.type,
+    description: null,
+    max_crew: 4,
+    max_crew_weight: data.maxWeight,
+    status: data.status === 'active' ? 'active' : 'inactive',
+    inspection_valid_until: data.status === 'active' ? new Date().toISOString().slice(0, 10) : null,
+    range_km: data.maxRange,
+  };
+  return toUiHelicopter(await request('/helicopters', 'POST', payload));
 };
 export const updateHelicopter = async (id: string, data: Partial<Helicopter>): Promise<Helicopter> => {
-  await delay();
-  const idx = helicopters.findIndex(h => h.id === id);
-  if (idx === -1) throw new Error('Not found');
-  helicopters[idx] = { ...helicopters[idx], ...data };
-  return helicopters[idx];
+  const payload: Record<string, unknown> = {};
+  if (data.registration !== undefined) payload.registration_number = data.registration;
+  if (data.type !== undefined) payload.type = data.type;
+  if (data.maxWeight !== undefined) payload.max_crew_weight = data.maxWeight;
+  if (data.maxRange !== undefined) payload.range_km = data.maxRange;
+  if (data.status !== undefined) {
+    payload.status = data.status === 'active' ? 'active' : 'inactive';
+    payload.inspection_valid_until = data.status === 'active' ? new Date().toISOString().slice(0, 10) : null;
+  }
+  return toUiHelicopter(await request(`/helicopters/${id}`, 'PATCH', payload));
 };
 
 // Crew
-export const fetchCrew = async (): Promise<CrewMember[]> => { await delay(); return [...crewMembers]; };
+export const fetchCrew = async (): Promise<CrewMember[]> => (await request<any[]>('/crew-members')).map(toUiCrew);
 export const createCrewMember = async (data: Omit<CrewMember, 'id'>): Promise<CrewMember> => {
-  await delay();
-  const item = { ...data, id: String(crewMembers.length + 1) };
-  crewMembers.push(item);
-  return item;
+  const [firstName, ...rest] = data.name.trim().split(/\s+/);
+  const payload = {
+    first_name: firstName || data.name,
+    last_name: rest.join(' ') || '-',
+    email: data.email,
+    weight: data.weight,
+    role: data.role,
+    pilot_license_number: data.role === 'PILOT' ? 'TEMP-LIC' : null,
+    license_valid_until: data.role === 'PILOT' ? data.licenseExpiry : null,
+    training_valid_until: data.licenseExpiry,
+  };
+  return toUiCrew(await request('/crew-members', 'POST', payload));
 };
 export const updateCrewMember = async (id: string, data: Partial<CrewMember>): Promise<CrewMember> => {
-  await delay();
-  const idx = crewMembers.findIndex(c => c.id === id);
-  if (idx === -1) throw new Error('Not found');
-  crewMembers[idx] = { ...crewMembers[idx], ...data };
-  return crewMembers[idx];
+  const payload: Record<string, unknown> = {};
+  if (data.name !== undefined) {
+    const [firstName, ...rest] = data.name.trim().split(/\s+/);
+    payload.first_name = firstName || data.name;
+    payload.last_name = rest.join(' ') || '-';
+  }
+  if (data.weight !== undefined) payload.weight = data.weight;
+  if (data.role !== undefined) payload.role = data.role;
+  if (data.licenseExpiry !== undefined) {
+    payload.license_valid_until = data.licenseExpiry;
+    payload.training_valid_until = data.licenseExpiry;
+  }
+  return toUiCrew(await request(`/crew-members/${id}`, 'PATCH', payload));
 };
 
 // Landing Sites
-export const fetchLandingSites = async (): Promise<LandingSite[]> => { await delay(); return [...landingSites]; };
-export const createLandingSite = async (data: Omit<LandingSite, 'id'>): Promise<LandingSite> => {
-  await delay();
-  const item = { ...data, id: String(landingSites.length + 1) };
-  landingSites.push(item);
-  return item;
-};
+export const fetchLandingSites = async (): Promise<LandingSite[]> => (await request<any[]>('/landing-sites')).map(toUiSite);
+export const createLandingSite = async (data: Omit<LandingSite, 'id'>): Promise<LandingSite> =>
+  toUiSite(await request('/landing-sites', 'POST', { name: data.name, latitude: data.latitude, longitude: data.longitude }));
 export const updateLandingSite = async (id: string, data: Partial<LandingSite>): Promise<LandingSite> => {
-  await delay();
-  const idx = landingSites.findIndex(s => s.id === id);
-  if (idx === -1) throw new Error('Not found');
-  landingSites[idx] = { ...landingSites[idx], ...data };
-  return landingSites[idx];
+  const payload: Record<string, unknown> = {};
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.latitude !== undefined) payload.latitude = data.latitude;
+  if (data.longitude !== undefined) payload.longitude = data.longitude;
+  return toUiSite(await request(`/landing-sites/${id}`, 'PATCH', payload));
 };
 
 // Planned Operations
-export const fetchOperations = async (): Promise<PlannedOperation[]> => { await delay(); return [...plannedOperations]; };
+export const fetchOperations = async (): Promise<PlannedOperation[]> => (await request<any[]>('/planned-operations')).map(toUiOperation);
 export const createOperation = async (data: Omit<PlannedOperation, 'id'>): Promise<PlannedOperation> => {
-  await delay();
-  const item = { ...data, id: String(plannedOperations.length + 1) };
-  plannedOperations.push(item);
-  return item;
+  const payload = {
+    project_code: data.projectCode,
+    short_description: data.description,
+    proposed_date_from: data.startDate || null,
+    proposed_date_to: data.endDate || null,
+    planned_date_from: data.startDate || null,
+    planned_date_to: data.endDate || null,
+    activities: data.activities.map((name) => ({ name })),
+    extra_info: null,
+    contacts: [],
+  };
+  return toUiOperation(await request('/planned-operations', 'POST', payload));
 };
 export const updateOperation = async (id: string, data: Partial<PlannedOperation>): Promise<PlannedOperation> => {
-  await delay();
-  const idx = plannedOperations.findIndex(o => o.id === id);
-  if (idx === -1) throw new Error('Not found');
-  plannedOperations[idx] = { ...plannedOperations[idx], ...data };
-  return plannedOperations[idx];
+  if (data.status !== undefined && Object.keys(data).length === 1) {
+    return toUiOperation(await request(`/planned-operations/${id}/status`, 'POST', { status: data.status }));
+  }
+  const payload: Record<string, unknown> = {};
+  if (data.description !== undefined) payload.short_description = data.description;
+  if (data.startDate !== undefined) payload.planned_date_from = data.startDate;
+  if (data.endDate !== undefined) payload.planned_date_to = data.endDate;
+  if (data.activities !== undefined) payload.activities = data.activities.map((name) => ({ name }));
+  return toUiOperation(await request(`/planned-operations/${id}`, 'PATCH', payload));
 };
 
 // Flight Orders
-export const fetchFlightOrders = async (): Promise<FlightOrder[]> => { await delay(); return [...flightOrders]; };
+export const fetchFlightOrders = async (): Promise<FlightOrder[]> => (await request<any[]>('/flight-orders')).map(toUiOrder);
 export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<FlightOrder> => {
-  await delay();
-  const item = { ...data, id: String(flightOrders.length + 1) };
-  flightOrders.push(item);
-  return item;
+  const payload = {
+    planned_start: data.startTime || null,
+    planned_end: data.startTime || null,
+    pilot_id: Number(data.pilotId),
+    helicopter_id: Number(data.helicopterId),
+    crew_ids: data.crewIds.map(Number),
+    start_site_id: Number(data.startSiteId),
+    end_site_id: Number(data.endSiteId),
+    planned_operation_ids: data.operationIds.map(Number),
+    estimated_distance: 100,
+  };
+  return toUiOrder(await request('/flight-orders', 'POST', payload));
 };
 export const updateFlightOrder = async (id: string, data: Partial<FlightOrder>): Promise<FlightOrder> => {
-  await delay();
-  const idx = flightOrders.findIndex(f => f.id === id);
-  if (idx === -1) throw new Error('Not found');
-  flightOrders[idx] = { ...flightOrders[idx], ...data };
-  return flightOrders[idx];
+  const payload: Record<string, unknown> = {};
+  if (data.status !== undefined) payload.status = data.status;
+  if (data.operationIds !== undefined) payload.planned_operation_ids = data.operationIds.map(Number);
+  return toUiOrder(await request(`/flight-orders/${id}`, 'PATCH', payload));
 };
