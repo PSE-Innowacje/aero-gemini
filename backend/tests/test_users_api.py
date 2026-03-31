@@ -151,6 +151,37 @@ def test_post_users_conflict_on_duplicate_email(client, admin_token, authz) -> N
     assert response.json()["detail"] == "Email already exists"
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "first_name": "F" * 101,
+            "last_name": "User",
+            "email": "name-too-long-first@example.com",
+            "password": "secret123",
+            "role": "SUPERVISOR",
+        },
+        {
+            "first_name": "Valid",
+            "last_name": "L" * 101,
+            "email": "name-too-long-last@example.com",
+            "password": "secret123",
+            "role": "SUPERVISOR",
+        },
+        {
+            "first_name": "Valid",
+            "last_name": "User",
+            "email": f"a@{'b' * 63}.{'c' * 31}.com",
+            "password": "secret123",
+            "role": "SUPERVISOR",
+        },
+    ],
+)
+def test_post_users_validation_error_for_fields_longer_than_100(client, admin_token, authz, payload) -> None:
+    response = client.post("/api/users", headers=authz(admin_token), json=payload)
+    assert response.status_code == 422
+
+
 def test_put_users_not_allowed(client, admin_token, authz) -> None:
     response = client.put(
         "/api/users/1",

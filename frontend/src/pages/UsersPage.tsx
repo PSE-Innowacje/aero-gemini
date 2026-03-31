@@ -52,6 +52,14 @@ const UsersPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.firstName.length > 100 || form.lastName.length > 100 || form.email.length > 100) {
+      toast({
+        title: 'Błąd walidacji',
+        description: 'Imię, nazwisko i e-mail mogą mieć maksymalnie 100 znaków.',
+        variant: 'destructive',
+      });
+      return;
+    }
     createMut.mutate(form);
   };
 
@@ -120,6 +128,7 @@ const UsersPage: React.FC = () => {
               <Label htmlFor="user-first-name">Imię</Label>
               <Input
                 id="user-first-name"
+                maxLength={100}
                 value={form.firstName}
                 onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
                 required
@@ -129,6 +138,7 @@ const UsersPage: React.FC = () => {
               <Label htmlFor="user-last-name">Nazwisko</Label>
               <Input
                 id="user-last-name"
+                maxLength={100}
                 value={form.lastName}
                 onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
                 required
@@ -139,6 +149,7 @@ const UsersPage: React.FC = () => {
               <Input
                 id="user-email"
                 type="email"
+                maxLength={100}
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 required
