@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createUser, fetchUsers } from '@/api/api';
+import { createUser, deleteUser, fetchUsers } from '@/api/api';
 import type { Role } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuthStore } from '@/store/authStore';
 import { toast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 
 const UsersPage: React.FC = () => {
   const qc = useQueryClient();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
   const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -37,9 +39,34 @@ const UsersPage: React.FC = () => {
     },
   });
 
+  const deleteMut = useMutation({
+    mutationFn: deleteUser,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: 'Usunięto użytkownika' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Błąd usuwania', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createMut.mutate(form);
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    if (id === currentUserId) {
+      toast({
+        title: 'Operacja niedozwolona',
+        description: 'Nie możesz usunąć własnego konta.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const confirmed = window.confirm(`Czy na pewno chcesz usunąć użytkownika ${name}?`);
+    if (!confirmed) return;
+    deleteMut.mutate(id);
   };
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
@@ -57,6 +84,7 @@ const UsersPage: React.FC = () => {
               <TableHead>Imię i nazwisko</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Rola</TableHead>
+              <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -65,6 +93,19 @@ const UsersPage: React.FC = () => {
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell><Badge variant="secondary">{u.role}</Badge></TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(u.id, u.name)}
+                    disabled={deleteMut.isPending || u.id === currentUserId}
+                    aria-label={`Usuń użytkownika ${u.name}`}
+                    title={u.id === currentUserId ? 'Nie możesz usunąć własnego konta' : undefined}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

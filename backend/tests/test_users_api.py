@@ -160,6 +160,39 @@ def test_put_users_not_allowed(client, admin_token, authz) -> None:
     assert response.status_code == 405
 
 
-def test_delete_users_not_allowed(client, admin_token, authz) -> None:
-    response = client.delete("/api/users/1", headers=authz(admin_token))
-    assert response.status_code == 405
+def test_delete_user_success_for_admin(client, admin_token, authz) -> None:
+    _register_user(client, email="delete-user@example.com", role="PLANNER")
+    listed = client.get("/api/users?sort_by=id&sort_dir=desc&limit=1", headers=authz(admin_token))
+    assert listed.status_code == 200
+    user_id = listed.json()[0]["id"]
+
+    response = client.delete(f"/api/users/{user_id}", headers=authz(admin_token))
+    assert response.status_code == 204
+
+    listed_after = client.get("/api/users?sort_by=id&sort_dir=desc&limit=50", headers=authz(admin_token))
+    assert listed_after.status_code == 200
+    ids = [item["id"] for item in listed_after.json()]
+    assert user_id not in ids
+
+
+def test_delete_user_not_found(client, admin_token, authz) -> None:
+    response = client.delete("/api/users/9999", headers=authz(admin_token))
+    assert response.status_code == 404
+    assert response.json()["detail"] == "User not found"
+
+
+def test_delete_user_forbidden_for_supervisor(client, supervisor_token, authz) -> None:
+    response = client.delete("/api/users/1", headers=authz(supervisor_token))
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Forbidden for current role"
+
+
+def test_delete_user_cannot_delete_self(client, admin_token, authz) -> None:
+    listed = client.get("/api/users?sort_by=id&sort_dir=asc&limit=50", headers=authz(admin_token))
+    assert listed.status_code == 200
+    admin = next((item for item in listed.json() if item["email"] == "admin@example.com"), None)
+    assert admin is not None
+
+    response = client.delete(f"/api/users/{admin['id']}", headers=authz(admin_token))
+    assert response.status_code == 400
+    assert response.json()["detail"] == "You cannot delete your own account"

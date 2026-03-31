@@ -14,7 +14,7 @@ const API_BASE_URL =
   (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ||
   'http://localhost:8000/api';
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 const withAuthHeaders = (): HeadersInit => {
   const token = getApiToken();
@@ -81,6 +81,9 @@ async function request<T>(
       message = fallback;
     }
     throw new Error(message);
+  }
+  if (response.status === 204) {
+    return undefined as T;
   }
   return response.json() as Promise<T>;
 }
@@ -232,6 +235,10 @@ export const createUser = async (data: {
     name: `${created.first_name} ${created.last_name}`.trim(),
     role: created.role,
   };
+};
+
+export const deleteUser = async (id: string): Promise<void> => {
+  await request<void>(`/users/${id}`, 'DELETE');
 };
 
 // Helicopters

@@ -54,3 +54,24 @@ def update_user(
     updated = repo.update(user, payload.model_dump(exclude_unset=True))
     logger.bind(event="user_api", action="update", user_id=updated.id).info("user_update_completed")
     return UserRead.model_validate(updated)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_roles(UserRole.ADMIN)),
+) -> None:
+    if actor.id == user_id:
+        logger.bind(event="user_api", action="delete", user_id=user_id, actor_id=actor.id).warning(
+            "user_delete_self_forbidden"
+        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
+    repo = BaseRepository(db, User)
+    user = repo.get(user_id)
+    if not user:
+        logger.bind(event="user_api", action="delete", user_id=user_id).warning("user_delete_not_found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    db.delete(user)
+    db.commit()
+    logger.bind(event="user_api", action="delete", user_id=user_id).info("user_delete_completed")
