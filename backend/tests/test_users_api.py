@@ -99,13 +99,56 @@ def test_patch_user_validation_error_for_invalid_role(client, admin_token, authz
     assert response.status_code == 422
 
 
-def test_post_users_not_allowed(client, admin_token, authz) -> None:
+def test_post_users_success_for_admin(client, admin_token, authz) -> None:
     response = client.post(
         "/api/users",
         headers=authz(admin_token),
-        json={"first_name": "A", "last_name": "B", "role": "ADMIN"},
+        json={
+            "first_name": "Create",
+            "last_name": "User",
+            "email": "created-user@example.com",
+            "password": "secret123",
+            "role": "SUPERVISOR",
+        },
     )
-    assert response.status_code == 405
+    assert response.status_code == 201
+    body = response.json()
+    assert body["email"] == "created-user@example.com"
+    assert body["role"] == "SUPERVISOR"
+
+
+def test_post_users_forbidden_for_supervisor(client, supervisor_token, authz) -> None:
+    response = client.post(
+        "/api/users",
+        headers=authz(supervisor_token),
+        json={
+            "first_name": "No",
+            "last_name": "Access",
+            "email": "forbidden-user@example.com",
+            "password": "secret123",
+            "role": "PLANNER",
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Forbidden for current role"
+
+
+def test_post_users_conflict_on_duplicate_email(client, admin_token, authz) -> None:
+    _register_user(client, email="duplicate-user@example.com", role="PLANNER")
+
+    response = client.post(
+        "/api/users",
+        headers=authz(admin_token),
+        json={
+            "first_name": "Duplicate",
+            "last_name": "User",
+            "email": "duplicate-user@example.com",
+            "password": "secret123",
+            "role": "SUPERVISOR",
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email already exists"
 
 
 def test_put_users_not_allowed(client, admin_token, authz) -> None:

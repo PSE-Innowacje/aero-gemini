@@ -7,7 +7,8 @@ from aero.core.database import get_db
 from aero.models.enums import UserRole
 from aero.models.user import User
 from aero.repositories.base import BaseRepository
-from aero.schemas.user import UserRead, UserUpdate
+from aero.schemas.user import UserCreate, UserRead, UserUpdate
+from aero.services.auth import register_user
 
 router = APIRouter()
 
@@ -25,6 +26,17 @@ def list_users(
     items = [UserRead.model_validate(item) for item in repo.list(skip=skip, limit=limit, sort_by=sort_by, sort_dir=sort_dir)]
     logger.bind(event="user_api", action="list", result_count=len(items)).debug("user_list_completed")
     return items
+
+
+@router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+def create_user(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(UserRole.ADMIN)),
+) -> UserRead:
+    user = register_user(db, payload)
+    logger.bind(event="user_api", action="create", user_id=user.id).info("user_create_completed")
+    return UserRead.model_validate(user)
 
 
 @router.patch("/{user_id}", response_model=UserRead)
