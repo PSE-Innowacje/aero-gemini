@@ -1,0 +1,451 @@
+api:
+  name: Aero Backend API
+  version: 0.1.0
+  base_path: /api
+  health_path: /health
+  auth:
+    type: bearer
+    header: Authorization
+    format: "Bearer <access_token>"
+    role_enum:
+      - ADMIN
+      - PLANNER
+      - SUPERVISOR
+      - PILOT
+
+common_query:
+  pagination:
+    skip:
+      type: int
+      default: 0
+      min: 0
+    limit:
+      type: int
+      default: 50
+      min: 1
+      max: 200
+  sorting:
+    sort_by:
+      type: str
+      default: id
+    sort_dir:
+      type: str
+      enum: [asc, desc]
+      default: asc
+
+schemas:
+  LoginRequest:
+    email: email
+    password: str
+  TokenResponse:
+    access_token: str
+    token_type: bearer
+    role: ADMIN|PLANNER|SUPERVISOR|PILOT
+    first_name: str
+
+  UserCreate:
+    first_name: str
+    last_name: str
+    email: email
+    password: str
+    role: ADMIN|PLANNER|SUPERVISOR|PILOT
+  UserUpdate:
+    first_name: str?
+    last_name: str?
+    role: ADMIN|PLANNER|SUPERVISOR|PILOT?
+  UserRead:
+    id: int
+    first_name: str
+    last_name: str
+    email: email
+    role: ADMIN|PLANNER|SUPERVISOR|PILOT
+
+  HelicopterCreate:
+    registration_number: "str(max=30)"
+    type: str
+    description: str?
+    max_crew: "int(1..10)"
+    max_crew_weight: "int(1..1000)"
+    status: "active|inactive"
+    inspection_valid_until: date?
+    range_km: "int(>=1)"
+  HelicopterUpdate:
+    registration_number: "str(max=30)?"
+    type: str?
+    description: str?
+    max_crew: "int(1..10)?"
+    max_crew_weight: "int(1..1000)?"
+    status: "active|inactive?"
+    inspection_valid_until: date?
+    range_km: "int(>=1)?"
+  HelicopterRead:
+    id: int
+    registration_number: "str(max=30)"
+    type: str
+    description: str?
+    max_crew: "int(1..10)"
+    max_crew_weight: "int(1..1000)"
+    status: "active|inactive"
+    inspection_valid_until: date?
+    range_km: "int(>=1)"
+
+  CrewMemberCreate:
+    first_name: str
+    last_name: str
+    email: email
+    weight: "int(30..200)"
+    role: PILOT|OBSERVER|CREW
+    pilot_license_number: str?
+    license_valid_until: date?
+    training_valid_until: date
+  CrewMemberUpdate:
+    first_name: str?
+    last_name: str?
+    email: email?
+    weight: "int(30..200)?"
+    role: PILOT|OBSERVER|CREW?
+    pilot_license_number: str?
+    license_valid_until: date?
+    training_valid_until: date?
+  CrewMemberRead:
+    id: int
+    first_name: str
+    last_name: str
+    email: email
+    weight: "int(30..200)"
+    role: PILOT|OBSERVER|CREW
+    pilot_license_number: str?
+    license_valid_until: date?
+    training_valid_until: date
+
+  LandingSiteCreate:
+    name: str
+    latitude: "float(-90..90)"
+    longitude: "float(-180..180)"
+  LandingSiteUpdate:
+    name: str?
+    latitude: "float(-90..90)?"
+    longitude: "float(-180..180)?"
+  LandingSiteRead:
+    id: int
+    name: str
+    latitude: "float(-90..90)"
+    longitude: "float(-180..180)"
+
+  PlannedOperationCreate:
+    project_code: str
+    short_description: str
+    route_geometry: RouteGeometry?
+    kml_content: str?
+    proposed_date_from: date?
+    proposed_date_to: date?
+    planned_date_from: date?
+    planned_date_to: date?
+    activities: "list[dict]?"
+    extra_info: str?
+    contacts: "list[email]?"
+  PlannedOperationUpdate:
+    project_code: str?
+    short_description: str?
+    route_geometry: RouteGeometry?
+    kml_content: str?
+    planned_date_from: date?
+    planned_date_to: date?
+    activities: "list[dict]?"
+    extra_info: str?
+    contacts: "list[email]?"
+    post_realization_notes: str?
+  PlannedOperationStatusUpdate:
+    status: "1|2|3|4|5|6|7"
+  PlannedOperationRead:
+    id: int
+    project_code: str
+    short_description: str
+    route_geometry: RouteGeometry?
+    route_bbox: "list[float]?"
+    points_count: int
+    distance_km: float
+    status: "1|2|3|4|5|6|7"
+    created_by: int
+    start_point: RoutePoint?
+    end_point: RoutePoint?
+
+  RouteGeometry:
+    type: LineString
+    coordinates: "list[(longitude, latitude)]"
+  RoutePoint:
+    longitude: float
+    latitude: float
+
+  FlightOrderCreate:
+    planned_start: datetime?
+    planned_end: datetime?
+    pilot_id: int
+    helicopter_id: int
+    crew_ids: "list[int]"
+    start_site_id: int
+    end_site_id: int
+    planned_operation_ids: "list[int]?"
+    estimated_distance: float
+  FlightOrderUpdate:
+    planned_start: datetime?
+    planned_end: datetime?
+    actual_start: datetime?
+    actual_end: datetime?
+    pilot_id: int?
+    helicopter_id: int?
+    crew_ids: "list[int]?"
+    start_site_id: int?
+    end_site_id: int?
+    estimated_distance: float?
+    status: "1|2|3|4|5|6|7?"
+    planned_operation_ids: "list[int]?"
+  FlightOrderRead:
+    id: int
+    planned_start: datetime?
+    planned_end: datetime?
+    actual_start: datetime?
+    actual_end: datetime?
+    pilot_id: int
+    helicopter_id: int
+    crew_ids: "list[int]"
+    start_site_id: int
+    end_site_id: int
+    planned_operation_ids: "list[int]"
+    crew_weight: int
+    estimated_distance: float
+    status: "1|2|3|4|5|6|7"
+
+workflow_status:
+  "1": DRAFT
+  "2": SUBMITTED
+  "3": APPROVED
+  "4": SCHEDULED
+  "5": IN_PROGRESS
+  "6": DONE
+  "7": REJECTED
+
+endpoints:
+  - id: auth_register
+    method: POST
+    path: /auth/register
+    auth: none
+    request_schema: UserCreate
+    response_schema: UserRead
+
+  - id: auth_login
+    method: POST
+    path: /auth/login
+    auth: none
+    request_schema: LoginRequest
+    response_schema: TokenResponse
+
+  - id: users_list
+    method: GET
+    path: /users
+    auth: bearer
+    roles: [ADMIN, SUPERVISOR]
+    query: [skip, limit, sort_by, sort_dir]
+    response_schema: "list[UserRead]"
+
+  - id: users_update
+    method: PATCH
+    path: /users/{user_id}
+    auth: bearer
+    roles: [ADMIN]
+    request_schema: UserUpdate
+    response_schema: UserRead
+    errors:
+      "404": User not found
+
+  - id: helicopters_create
+    method: POST
+    path: /helicopters
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: HelicopterCreate
+    response_schema: HelicopterRead
+    errors:
+      "409": Registration number already exists
+    notes:
+      - inspection_valid_until is required when status is active
+
+  - id: helicopters_list
+    method: GET
+    path: /helicopters
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR, PILOT]
+    query: [skip, limit, sort_by, sort_dir]
+    response_schema: "list[HelicopterRead]"
+
+  - id: helicopters_update
+    method: PATCH
+    path: /helicopters/{helicopter_id}
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: HelicopterUpdate
+    response_schema: HelicopterRead
+    errors:
+      "404": Helicopter not found
+      "409": Registration number already exists
+
+  - id: helicopters_replace
+    method: PUT
+    path: /helicopters/{helicopter_id}
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: HelicopterCreate
+    response_schema: HelicopterRead
+    errors:
+      "404": Helicopter not found
+      "409": Registration number already exists
+
+  - id: crew_members_create
+    method: POST
+    path: /crew-members
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: CrewMemberCreate
+    response_schema: CrewMemberRead
+    notes:
+      - pilot_license_number and license_valid_until are required when role is PILOT
+
+  - id: crew_members_list
+    method: GET
+    path: /crew-members
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR, PILOT]
+    query: [skip, limit, sort_by, sort_dir]
+    response_schema: "list[CrewMemberRead]"
+
+  - id: crew_members_update
+    method: PATCH
+    path: /crew-members/{crew_member_id}
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: CrewMemberUpdate
+    response_schema: CrewMemberRead
+    errors:
+      "404": Crew member not found
+
+  - id: landing_sites_create
+    method: POST
+    path: /landing-sites
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: LandingSiteCreate
+    response_schema: LandingSiteRead
+
+  - id: landing_sites_list
+    method: GET
+    path: /landing-sites
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR, PILOT]
+    query: [skip, limit, sort_by, sort_dir]
+    response_schema: "list[LandingSiteRead]"
+
+  - id: landing_sites_update
+    method: PATCH
+    path: /landing-sites/{landing_site_id}
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: LandingSiteUpdate
+    response_schema: LandingSiteRead
+    errors:
+      "404": Landing site not found
+
+  - id: planned_operations_create
+    method: POST
+    path: /planned-operations
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: PlannedOperationCreate
+    response_schema: PlannedOperationRead
+    notes:
+      - exactly one of route_geometry or kml_content must be provided
+
+  - id: planned_operations_upload_kml
+    method: POST
+    path: /planned-operations/upload-kml
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    content_type: multipart/form-data
+    form:
+      payload_json: "str(JSON object)"
+      kml_file: file
+    response_schema: PlannedOperationRead
+    errors:
+      "422": payload_json or schema validation failed
+
+  - id: planned_operations_list
+    method: GET
+    path: /planned-operations
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR, PILOT]
+    query:
+      - status_filter(1..7)?
+      - skip
+      - limit
+    response_schema: "list[PlannedOperationRead]"
+
+  - id: planned_operations_update
+    method: PATCH
+    path: /planned-operations/{operation_id}
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: PlannedOperationUpdate
+    response_schema: PlannedOperationRead
+    errors:
+      "404": Planned operation not found
+    notes:
+      - cannot send both route_geometry and kml_content
+      - server enforces edit-window and status transition constraints
+
+  - id: planned_operations_change_status
+    method: POST
+    path: /planned-operations/{operation_id}/status
+    auth: bearer
+    roles: any_authenticated_user
+    request_schema: PlannedOperationStatusUpdate
+    response_schema: PlannedOperationRead
+    errors:
+      "404": Planned operation not found
+
+  - id: flight_orders_create
+    method: POST
+    path: /flight-orders
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR]
+    request_schema: FlightOrderCreate
+    response_schema: FlightOrderRead
+    notes:
+      - server validates pilot/helicopter/crew/distance constraints
+      - server assigns crew and planned operation relationships
+
+  - id: flight_orders_list
+    method: GET
+    path: /flight-orders
+    auth: bearer
+    roles: [ADMIN, PLANNER, SUPERVISOR, PILOT]
+    query: [skip, limit]
+    response_schema: "list[FlightOrderRead]"
+
+  - id: flight_orders_update
+    method: PATCH
+    path: /flight-orders/{order_id}
+    auth: bearer
+    roles: [ADMIN, PILOT, PLANNER, SUPERVISOR]
+    request_schema: FlightOrderUpdate
+    response_schema: FlightOrderRead
+    errors:
+      "404": Flight order not found
+    notes:
+      - constraints are revalidated when pilot/helicopter/crew/distance changes
+      - planned operation links are updated when planned_operation_ids is provided
+
+common_errors:
+  "401": Missing or invalid bearer token, or token user no longer exists
+  "403": Authenticated user lacks required role
+  "404": Resource not found
+  "409": Conflict (duplicate helicopter registration)
+  "422": Validation error
