@@ -43,6 +43,39 @@ async function request<T>(path: string, method: Method = 'GET', body?: unknown):
   return response.json() as Promise<T>;
 }
 
+async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      ...withAuthHeaders(),
+    },
+    body: formData,
+  });
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw new Error('Session expired. Please log in again.');
+  }
+  if (!response.ok) {
+    const fallback = `Request failed (${response.status})`;
+    let message = fallback;
+    try {
+      const payload = await response.json();
+      const detail = payload?.detail;
+      if (typeof detail === 'string') {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        message = String(detail[0]?.msg ?? fallback);
+      } else {
+        message = payload?.message || fallback;
+      }
+    } catch {
+      message = fallback;
+    }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
+}
+
 const toUiHelicopter = (h: any): Helicopter => ({
   id: String(h.id),
   registration: h.registration_number,
@@ -81,6 +114,9 @@ const toUiOperation = (o: any): PlannedOperation => ({
   endDate: o.planned_date_to ?? o.proposed_date_to ?? '',
   status: o.status,
   description: o.short_description,
+  routeGeometry: o.route_geometry && o.route_geometry.type === 'LineString' && Array.isArray(o.route_geometry.coordinates)
+    ? { type: 'LineString', coordinates: o.route_geometry.coordinates as [number, number][] }
+    : null,
 });
 
 const toUiOrder = (o: any): FlightOrder => ({
@@ -199,6 +235,26 @@ export const createOperation = async (data: Omit<PlannedOperation, 'id'>): Promi
     contacts: [],
   };
   return toUiOperation(await request('/planned-operations', 'POST', payload));
+};
+export const createOperationFromKml = async (
+  data: Omit<PlannedOperation, 'id'>,
+  file: File
+): Promise<PlannedOperation> => {
+  const payload = {
+    project_code: data.projectCode,
+    short_description: data.description,
+    proposed_date_from: data.startDate || null,
+    proposed_date_to: data.endDate || null,
+    planned_date_from: data.startDate || null,
+    planned_date_to: data.endDate || null,
+    activities: data.activities.map((name) => ({ name })),
+    extra_info: null,
+    contacts: [],
+  };
+  const formData = new FormData();
+  formData.append('payload_json', JSON.stringify(payload));
+  formData.append('kml_file', file);
+  return toUiOperation(await requestMultipart('/planned-operations/upload-kml', formData));
 };
 export const updateOperation = async (id: string, data: Partial<PlannedOperation>): Promise<PlannedOperation> => {
   if (data.status !== undefined && Object.keys(data).length === 1) {

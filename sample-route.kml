@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Sample Flight Route</name>
+    <Placemark>
+      <name>Krakow Test Route</name>
+      <description>Sample LineString route for planned operation upload.</description>
+      <LineString>
+        <tessellate>1</tessellate>
+        <coordinates>
+          19.9400,50.0600,0
+          20.1800,50.0200,0
+          20.4200,49.9800,0
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>

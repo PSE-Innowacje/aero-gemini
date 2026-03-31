@@ -13,6 +13,7 @@ import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
+import { buildFlightOrderPolylinePositions } from '@/lib/flightOrderRoute';
 
 const statusColors: Record<FlightOrderStatus, string> = {
   1: 'bg-muted text-muted-foreground',
@@ -102,9 +103,11 @@ const FlightOrdersPage: React.FC = () => {
   }, [viewing, sites]);
 
   const viewingPolylines: MapPolyline[] = useMemo(() => {
-    if (viewingMarkers.length < 2) return [];
-    return [{ positions: viewingMarkers.map(m => [m.lat, m.lng] as [number, number]) }];
-  }, [viewingMarkers]);
+    if (!viewing) return [];
+    const positions = buildFlightOrderPolylinePositions(viewing, sites, operations);
+    if (!positions || positions.length < 2) return [];
+    return [{ positions }];
+  }, [viewing, sites, operations]);
 
   const viewingCenter: [number, number] = viewingMarkers.length > 0
     ? [viewingMarkers[0].lat, viewingMarkers[0].lng]

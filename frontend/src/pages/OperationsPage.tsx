@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchOperations, createOperation, updateOperation } from '@/api/api';
+import { fetchOperations, createOperation, createOperationFromKml, updateOperation } from '@/api/api';
 import type { PlannedOperation, OperationStatus } from '@/types';
 import { operationStatusLabels } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,6 +43,7 @@ const OperationsPage: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<PlannedOperation | null>(null);
   const [viewing, setViewing] = useState<PlannedOperation | null>(null);
+  const [kmlFile, setKmlFile] = useState<File | null>(null);
   const [form, setForm] = useState<OperationForm>({
     projectCode: '',
     activities: [],
@@ -53,7 +54,8 @@ const OperationsPage: React.FC = () => {
   });
 
   const createMut = useMutation({
-    mutationFn: (d: Omit<PlannedOperation, 'id'>) => createOperation(d),
+    mutationFn: ({ data, file }: { data: Omit<PlannedOperation, 'id'>; file: File | null }) =>
+      file ? createOperationFromKml(data, file) : createOperation(data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['operations'] }); setOpen(false); toast({ title: 'Dodano operację' }); },
     onError: (error: Error) => { toast({ title: 'Nie udało się dodać operacji', description: error.message, variant: 'destructive' }); },
   });
@@ -67,6 +69,7 @@ const OperationsPage: React.FC = () => {
 
   const openCreate = () => {
     setEditing(null);
+    setKmlFile(null);
     setForm({ projectCode: '', activities: [], startDate: '', endDate: '', status: 1, description: '' });
     setOpen(true);
   };
@@ -93,7 +96,7 @@ const OperationsPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) updateMut.mutate({ id: editing.id, ...form });
-    else createMut.mutate(form);
+    else createMut.mutate({ data: form, file: kmlFile });
   };
 
   const canChangeStatus = user?.role === 'ADMIN' || user?.role === 'SUPERVISOR';
@@ -171,6 +174,17 @@ const OperationsPage: React.FC = () => {
               <Input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} required />
             </div>
             <Textarea placeholder="Opis" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            {!editing && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">Plik trasy KML (opcjonalnie)</label>
+                <Input
+                  type="file"
+                  accept=".kml,application/vnd.google-earth.kml+xml"
+                  onChange={e => setKmlFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">Po wybraniu pliku operacja zostanie utworzona przez endpoint uploadu KML.</p>
+              </div>
+            )}
             <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
           </form>
         </DialogContent>

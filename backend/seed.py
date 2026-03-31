@@ -159,10 +159,10 @@ def main() -> None:
 
         # Landing sites for route selection
         site_specs = [
-            ("Base A", 52.2297, 21.0122),
-            ("Site B", 52.4064, 16.9252),
-            ("Site C", 50.0647, 19.9450),
-            ("Site D", 54.3520, 18.6466),
+            ("Warszawa", 52.2297, 21.0122),
+            ("Poznań", 52.4064, 16.9252),
+            ("Kraków", 50.0647, 19.9450),
+            ("Gdańsk", 54.3520, 18.6466),
         ]
         sites_by_name: dict[str, LandingSite] = {}
         for name, lat, lng in site_specs:

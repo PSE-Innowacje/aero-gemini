@@ -48,6 +48,12 @@ export const operationStatusLabels: Record<OperationStatus, string> = {
   5: 'Completed',
 };
 
+/** GeoJSON LineString from API (coordinates are [longitude, latitude]). */
+export interface OperationRouteGeometry {
+  type: 'LineString';
+  coordinates: [number, number][];
+}
+
 export interface PlannedOperation {
   id: string;
   projectCode: string;
@@ -57,6 +63,7 @@ export interface PlannedOperation {
   status: OperationStatus;
   description: string;
   kmlData?: string;
+  routeGeometry?: OperationRouteGeometry | null;
 }
 
 export type FlightOrderStatus = 1 | 2 | 3 | 4;

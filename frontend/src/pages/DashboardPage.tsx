@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plane, Users, MapPin, ClipboardList } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
+import { buildFlightOrderPolylinePositions } from '@/lib/flightOrderRoute';
 
 const ROUTE_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2'];
 
@@ -41,17 +42,16 @@ const DashboardPage: React.FC = () => {
     return flightOrders
       .map((order, i) => {
         if (!isRouteVisible(order.id)) return null;
-        const startSite = sites.find(s => s.id === order.startSiteId);
-        const endSite = sites.find(s => s.id === order.endSiteId);
-        if (!startSite || !endSite) return null;
+        const positions = buildFlightOrderPolylinePositions(order, sites, operations);
+        if (!positions || positions.length < 2) return null;
         return {
-          positions: [[startSite.latitude, startSite.longitude], [endSite.latitude, endSite.longitude]] as [number, number][],
+          positions,
           color: ROUTE_COLORS[i % ROUTE_COLORS.length],
           weight: 3,
         };
       })
       .filter(Boolean) as MapPolyline[];
-  }, [flightOrders, sites, visibleRoutes]);
+  }, [flightOrders, sites, operations, visibleRoutes]);
 
   return (
     <div className="space-y-6">
