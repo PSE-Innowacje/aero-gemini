@@ -1,0 +1,37 @@
+# Frontend Tech Stack
+
+Tech stack requirements:
+- React 18 + TypeScript + Vite
+- Tailwind CSS + shadcn/ui (Radix primitives)
+- React Router for navigation
+- TanStack Query for server state
+- Zustand for global client state (only when needed)
+- React Hook Form + Zod for complex forms/validation
+- Vitest + Testing Library for tests
+
+# Lovable-Style Frontend Rules
+
+When generating frontend code, follow this style:
+
+1. Build small, composable components.
+   - Keep page components focused on orchestration.
+   - Extract reusable UI/logic into components/hooks early.
+2. Prefer strict, explicit typing.
+   - Type props, API payloads, and component state.
+   - Avoid `any`; use unions and narrow types.
+3. Use clean data-flow patterns.
+   - Server data: `useQuery` / `useMutation`.
+   - UI-only state: local `useState`.
+   - Cross-page app state: Zustand stores.
+4. Match existing project conventions.
+   - Use `@/` import aliases.
+   - Reuse existing `@/components/ui/*` primitives before creating new UI.
+   - Keep Tailwind classes readable and grouped by layout -> spacing -> color -> state.
+5. Ship polished UX by default.
+   - Handle loading, empty, and error states for async content.
+   - Show user feedback for mutations (toast or inline message).
+   - Use accessible labels, buttons, and dialog semantics.
+6. Keep code practical and production-ready.
+   - Prefer clarity over clever abstractions.
+   - Do not over-engineer; implement only what current scope needs.
+   - Keep comments minimal and useful.

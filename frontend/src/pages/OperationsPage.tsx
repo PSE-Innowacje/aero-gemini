@@ -22,7 +22,17 @@ const statusColors: Record<OperationStatus, string> = {
   5: 'bg-purple-100 text-purple-800',
 };
 
-const allActivities = ['Survey', 'Transport', 'Rescue', 'Medical', 'Photography', 'Inspection'];
+const allActivities = ['Oględziny wizualne', 'Skan 3D', 'Lokalizacja awarii', 'Zdjęcia', 'Patrolowanie'];
+type ActivityName = (typeof allActivities)[number];
+
+type OperationForm = {
+  projectCode: string;
+  activities: ActivityName[];
+  startDate: string;
+  endDate: string;
+  status: OperationStatus;
+  description: string;
+};
 
 const OperationsPage: React.FC = () => {
   const qc = useQueryClient();
@@ -33,7 +43,14 @@ const OperationsPage: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<PlannedOperation | null>(null);
   const [viewing, setViewing] = useState<PlannedOperation | null>(null);
-  const [form, setForm] = useState({ projectCode: '', activities: [] as string[], startDate: '', endDate: '', status: 1 as OperationStatus, description: '' });
+  const [form, setForm] = useState<OperationForm>({
+    projectCode: '',
+    activities: [],
+    startDate: '',
+    endDate: '',
+    status: 1,
+    description: '',
+  });
 
   const createMut = useMutation({
     mutationFn: (d: Omit<PlannedOperation, 'id'>) => createOperation(d),
@@ -46,10 +63,28 @@ const OperationsPage: React.FC = () => {
 
   const filtered = statusFilter === 'all' ? operations : operations.filter(o => o.status === Number(statusFilter));
 
-  const openCreate = () => { setEditing(null); setForm({ projectCode: '', activities: [], startDate: '', endDate: '', status: 1, description: '' }); setOpen(true); };
-  const openEdit = (o: PlannedOperation) => { setEditing(o); setForm({ projectCode: o.projectCode, activities: o.activities, startDate: o.startDate, endDate: o.endDate, status: o.status, description: o.description }); setOpen(true); };
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ projectCode: '', activities: [], startDate: '', endDate: '', status: 1, description: '' });
+    setOpen(true);
+  };
+  const openEdit = (o: PlannedOperation) => {
+    setEditing(o);
+    const allowedActivities = o.activities.filter((a): a is ActivityName =>
+      allActivities.includes(a as ActivityName),
+    );
+    setForm({
+      projectCode: o.projectCode,
+      activities: allowedActivities,
+      startDate: o.startDate,
+      endDate: o.endDate,
+      status: o.status,
+      description: o.description,
+    });
+    setOpen(true);
+  };
 
-  const toggleActivity = (a: string) => {
+  const toggleActivity = (a: ActivityName) => {
     setForm(f => ({ ...f, activities: f.activities.includes(a) ? f.activities.filter(x => x !== a) : [...f.activities, a] }));
   };
 

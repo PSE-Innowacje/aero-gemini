@@ -1,0 +1,31 @@
+---
+description: Lovable-style conventions for frontend React/TypeScript code
+globs: frontend/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend Lovable Style
+
+- Build small, composable components and keep page files orchestration-focused.
+- Use strict TypeScript typing for props, state, and API shapes; avoid `any`.
+- Use `@/` import aliases and reuse `@/components/ui/*` before adding new primitives.
+- Prefer TanStack Query for server state, `useState` for local UI state, and Zustand only for shared cross-page state.
+- Use Tailwind classes in readable groups (layout -> spacing -> typography -> color -> state).
+- Provide loading, empty, and error states for async UI by default.
+- Use accessible and consistent shadcn/ui patterns for dialogs, forms, and buttons.
+- Keep implementations practical and lightweight; avoid over-abstraction.
+
+# Example
+
+```tsx
+const { data = [], isLoading, isError } = useQuery({
+  queryKey: ['operations'],
+  queryFn: fetchOperations,
+});
+
+if (isLoading) return <LoadingState />;
+if (isError) return <ErrorState />;
+if (!data.length) return <EmptyState />;
+
+return <OperationsTable operations={data} />;
+```
