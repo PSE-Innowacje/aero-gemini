@@ -16,7 +16,7 @@ router = APIRouter()
 def create_crew_member(
     payload: CrewMemberCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> CrewMemberRead:
     repo = BaseRepository(db, CrewMember)
     result = CrewMemberRead.model_validate(repo.create(payload.model_dump()))
@@ -47,7 +47,7 @@ def update_crew_member(
     crew_member_id: int,
     payload: CrewMemberUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> CrewMemberRead:
     repo = BaseRepository(db, CrewMember)
     model = repo.get(crew_member_id)

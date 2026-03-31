@@ -14,7 +14,7 @@ export const fetchLandingSites = async (): Promise<LandingSite[]> => {
   return sites.map(toUiSite);
 };
 
-export const createLandingSite = async (data: Omit<LandingSite, 'id'>): Promise<LandingSite> => {
+export const createLandingSite = async (data: Pick<LandingSite, 'name' | 'latitude' | 'longitude'>): Promise<LandingSite> => {
   const payload: CreateLandingSitePayload = {
     name: data.name,
     latitude: data.latitude,

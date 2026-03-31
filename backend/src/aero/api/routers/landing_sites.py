@@ -16,7 +16,7 @@ router = APIRouter()
 def create_landing_site(
     payload: LandingSiteCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> LandingSiteRead:
     repo = BaseRepository(db, LandingSite)
     result = LandingSiteRead.model_validate(repo.create(payload.model_dump()))
@@ -49,7 +49,7 @@ def update_landing_site(
     landing_site_id: int,
     payload: LandingSiteUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> LandingSiteRead:
     repo = BaseRepository(db, LandingSite)
     model = repo.get(landing_site_id)

@@ -37,6 +37,15 @@ export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<
 
 export const updateFlightOrder = async (id: string, data: Partial<FlightOrder>): Promise<FlightOrder> => {
   const payload: Record<string, unknown> = {};
+  if (data.startTime !== undefined) {
+    payload.planned_start = data.startTime || null;
+    payload.planned_end = data.startTime || null;
+  }
+  if (data.pilotId !== undefined) payload.pilot_id = Number(data.pilotId);
+  if (data.helicopterId !== undefined) payload.helicopter_id = Number(data.helicopterId);
+  if (data.crewIds !== undefined) payload.crew_ids = data.crewIds.map(Number);
+  if (data.startSiteId !== undefined) payload.start_site_id = Number(data.startSiteId);
+  if (data.endSiteId !== undefined) payload.end_site_id = Number(data.endSiteId);
   if (data.status !== undefined) payload.status = data.status;
   if (data.operationIds !== undefined) payload.planned_operation_ids = data.operationIds.map(Number);
   return toUiOrder(await request<BackendFlightOrder>(`/flight-orders/${id}`, 'PATCH', payload));

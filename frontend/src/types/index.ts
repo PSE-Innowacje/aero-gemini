@@ -35,8 +35,8 @@ export interface LandingSite {
   name: string;
   latitude: number;
   longitude: number;
-  elevation: number;
-  status: 'active' | 'inactive';
+  elevation?: number;
+  status?: 'active' | 'inactive';
 }
 
 export type OperationStatus = 1 | 2 | 3 | 4 | 5;

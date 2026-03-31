@@ -4,7 +4,6 @@ import { fetchLandingSites, createLandingSite, updateLandingSite } from '@/api/a
 import type { LandingSite } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Plus, Pencil } from 'lucide-react';
@@ -18,12 +17,12 @@ const LandingSitesPage: React.FC = () => {
   const { data: sites = [], isLoading } = useQuery({ queryKey: queryKeys.landingSites, queryFn: fetchLandingSites });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LandingSite | null>(null);
-  const [form, setForm] = useState({ name: '', latitude: 50.06, longitude: 19.94, elevation: 0, status: 'active' as LandingSite['status'] });
+  const [form, setForm] = useState({ name: '', latitude: 50.06, longitude: 19.94 });
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const createMut = useMutation({
-    mutationFn: (d: Omit<LandingSite, 'id'>) => createLandingSite(d),
+    mutationFn: (d: Pick<LandingSite, 'name' | 'latitude' | 'longitude'>) => createLandingSite(d),
     ...buildMutationOptions({
       queryClient: qc,
       invalidateQueryKey: queryKeys.landingSites,
@@ -43,8 +42,8 @@ const LandingSitesPage: React.FC = () => {
     }),
   });
 
-  const openCreate = () => { setEditing(null); setForm({ name: '', latitude: 50.06, longitude: 19.94, elevation: 0, status: 'active' }); setOpen(true); };
-  const openEdit = (s: LandingSite) => { setEditing(s); setForm({ name: s.name, latitude: s.latitude, longitude: s.longitude, elevation: s.elevation, status: s.status }); setOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ name: '', latitude: 50.06, longitude: 19.94 }); setOpen(true); };
+  const openEdit = (s: LandingSite) => { setEditing(s); setForm({ name: s.name, latitude: s.latitude, longitude: s.longitude }); setOpen(true); };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing) updateMut.mutate({ id: editing.id, ...form });
@@ -72,7 +71,7 @@ const LandingSitesPage: React.FC = () => {
 
   const siteMarkers: MapMarker[] = sites.map(s => ({
     id: s.id, lat: s.latitude, lng: s.longitude,
-    popup: `<strong>${s.name}</strong><br/>Wys. ${s.elevation}m`,
+    popup: `<strong>${s.name}</strong>`,
   }));
 
   const formMarker: MapMarker[] = [{ id: 'selected', lat: form.latitude, lng: form.longitude }];
@@ -101,8 +100,6 @@ const LandingSitesPage: React.FC = () => {
               <TableHead>Nazwa</TableHead>
               <TableHead>Szerokość</TableHead>
               <TableHead>Długość</TableHead>
-              <TableHead>Wysokość (m)</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
@@ -117,8 +114,6 @@ const LandingSitesPage: React.FC = () => {
                 <TableCell className="font-medium">{s.name}</TableCell>
                 <TableCell>{s.latitude.toFixed(4)}</TableCell>
                 <TableCell>{s.longitude.toFixed(4)}</TableCell>
-                <TableCell>{s.elevation}</TableCell>
-                <TableCell><Badge className={s.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>{s.status}</Badge></TableCell>
                 <TableCell><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openEdit(s); }}><Pencil className="h-4 w-4" /></Button></TableCell>
               </TableRow>
             ))}
@@ -139,10 +134,9 @@ const LandingSitesPage: React.FC = () => {
               className="h-[200px]"
             />
             <p className="text-xs text-muted-foreground">Kliknij na mapę aby wybrać lokalizację</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Input type="number" step="any" placeholder="Szerokość" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: Number(e.target.value) }))} required />
               <Input type="number" step="any" placeholder="Długość" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: Number(e.target.value) }))} required />
-              <Input type="number" placeholder="Wysokość (m)" value={form.elevation || ''} onChange={e => setForm(f => ({ ...f, elevation: Number(e.target.value) }))} required />
             </div>
             <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
           </form>

@@ -41,6 +41,7 @@ export const updateOperation = async (id: string, data: Partial<PlannedOperation
   }
 
   const payload: Record<string, unknown> = {};
+  if (data.projectCode !== undefined) payload.project_code = data.projectCode;
   if (data.description !== undefined) payload.short_description = data.description;
   if (data.startDate !== undefined) payload.planned_date_from = data.startDate;
   if (data.endDate !== undefined) payload.planned_date_to = data.endDate;

@@ -40,6 +40,7 @@ class PlannedOperationCreate(ORMModel):
 
 
 class PlannedOperationUpdate(ORMModel):
+    project_code: str | None = None
     short_description: str | None = None
     route_geometry: RouteGeometry | None = None
     kml_content: str | None = None

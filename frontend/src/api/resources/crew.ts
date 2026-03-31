@@ -41,6 +41,7 @@ export const updateCrewMember = async (id: string, data: Partial<CrewMember>): P
     payload.first_name = firstName || data.name;
     payload.last_name = rest.join(' ') || '-';
   }
+  if (data.email !== undefined) payload.email = data.email;
   if (data.weight !== undefined) payload.weight = data.weight;
   if (data.role !== undefined) payload.role = data.role;
   if (data.licenseExpiry !== undefined) {

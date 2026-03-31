@@ -5,6 +5,7 @@ type LoginResponse = {
   access_token: string;
   token_type: string;
   role: Role;
+  first_name?: string;
 };
 
 export const loginRequest = (email: string, password: string) =>
