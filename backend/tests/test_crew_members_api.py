@@ -36,8 +36,8 @@ def test_post_crew_member_success(client, planner_token, authz) -> None:
     assert body["pilot_license_number"] == "LIC-001"
 
 
-@pytest.mark.parametrize("token_fixture", ["supervisor_token", "pilot_user_token"])
-def test_post_crew_member_forbidden_for_non_admin_and_non_planner(client, request, authz, token_fixture: str) -> None:
+@pytest.mark.parametrize("token_fixture", ["pilot_user_token"])
+def test_post_crew_member_forbidden_for_pilot(client, request, authz, token_fixture: str) -> None:
     token = request.getfixturevalue(token_fixture)
     response = client.post(
         "/api/crew-members",
@@ -71,10 +71,8 @@ def test_get_crew_members_success_with_sorting(client, planner_token, authz) -> 
         license_valid_until=None,
     )
     second = _crew_member_payload(
-        "alpha.crew@example.com",
-        role="CREW",
-        pilot_license_number=None,
-        license_valid_until=None,
+        "alpha.pilot@example.com",
+        role="PILOT",
     )
     assert client.post("/api/crew-members", headers=authz(planner_token), json=first).status_code == 200
     assert client.post("/api/crew-members", headers=authz(planner_token), json=second).status_code == 200

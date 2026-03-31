@@ -2,7 +2,7 @@ import os
 import sys
 from datetime import UTC, date, datetime, time, timedelta
 
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, select, text
 
 
 def main() -> None:
@@ -149,20 +149,20 @@ def main() -> None:
                     },
                     {
                         "first_name": "Chris",
-                        "last_name": "Crew",
-                        "email": "crew1@example.com",
+                        "last_name": "Observer",
+                        "email": "observer2@example.com",
                         "weight": 88,
-                        "role": CrewRole.CREW,
+                        "role": CrewRole.OBSERVER,
                         "pilot_license_number": None,
                         "license_valid_until": None,
                         "training_valid_until": today + timedelta(days=280),
                     },
                     {
                         "first_name": "Nina",
-                        "last_name": "Crew",
-                        "email": "crew2@example.com",
+                        "last_name": "Observer",
+                        "email": "observer3@example.com",
                         "weight": 70,
-                        "role": CrewRole.CREW,
+                        "role": CrewRole.OBSERVER,
                         "pilot_license_number": None,
                         "license_valid_until": None,
                         "training_valid_until": today + timedelta(days=310),
@@ -340,7 +340,7 @@ def main() -> None:
                     "planned_end": dt_in_days(2, 17),
                     "pilot_email": "pilot2@example.com",
                     "helicopter_reg": "SP-HELI2",
-                    "crew_emails": ["crew2@example.com"],
+                    "crew_emails": ["observer3@example.com"],
                     "start_site_name": "Kraków",
                     "end_site_name": "Gdańsk",
                     "estimated_distance": 150.0,
@@ -348,6 +348,8 @@ def main() -> None:
                     "status": WorkflowStatus.APPROVED,
                 }
             )
+        db.execute(text("UPDATE crew_members SET role = 'OBSERVER' WHERE role = 'CREW'"))
+
         for order_data in flight_order_specs:
             pilot = crew_by_email[order_data["pilot_email"]]
             helicopter = helicopters_by_reg[order_data["helicopter_reg"]]

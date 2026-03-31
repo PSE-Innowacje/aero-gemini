@@ -1,5 +1,5 @@
 export type Role = 'ADMIN' | 'PLANNER' | 'SUPERVISOR' | 'PILOT';
-export type CrewRole = 'PILOT' | 'OBSERVER' | 'CREW';
+export type CrewRole = 'PILOT' | 'OBSERVER';
 
 export interface User {
   id: string;

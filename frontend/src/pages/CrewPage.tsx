@@ -55,7 +55,7 @@ const CrewPage: React.FC = () => {
     return target < today;
   };
   const getValidityLabel = (date?: string | null) => (isExpired(date) ? 'Nieważna' : 'Ważna');
-  const roleLabels: Record<CrewRole, string> = { PILOT: 'Pilot', OBSERVER: 'Obserwator', CREW: 'Członek załogi' };
+  const roleLabels: Record<CrewRole, string> = { PILOT: 'Pilot', OBSERVER: 'Obserwator' };
   const filteredAndSortedCrew = useMemo(() => {
     const direction = roleSortDirection === 'asc' ? 1 : -1;
     return crew
@@ -82,7 +82,6 @@ const CrewPage: React.FC = () => {
               <SelectItem value="ALL">Wszystkie role</SelectItem>
               <SelectItem value="PILOT">Pilot</SelectItem>
               <SelectItem value="OBSERVER">Obserwator</SelectItem>
-              <SelectItem value="CREW">Członek załogi</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
@@ -115,7 +114,7 @@ const CrewPage: React.FC = () => {
               <TableRow key={c.id}>
                 <TableCell className="font-medium">{c.name}</TableCell>
                 <TableCell>{c.email}</TableCell>
-                <TableCell><Badge variant="secondary">{c.role}</Badge></TableCell>
+                <TableCell><Badge variant="secondary">{roleLabels[c.role]}</Badge></TableCell>
                 <TableCell>
                   <span className={isExpired(c.licenseExpiry) ? 'text-destructive flex items-center gap-1' : ''}>
                     {isExpired(c.licenseExpiry) && <AlertTriangle className="h-3 w-3" />}
@@ -172,7 +171,6 @@ const CrewPage: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="PILOT">Pilot</SelectItem>
                   <SelectItem value="OBSERVER">Obserwator</SelectItem>
-                  <SelectItem value="CREW">Członek załogi</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -208,7 +206,7 @@ const CrewPage: React.FC = () => {
           {previewing && (
             <div className="space-y-3 text-sm">
               <div><span className="text-muted-foreground">Członek załogi:</span> {previewing.name}</div>
-              <div><span className="text-muted-foreground">Rola:</span> {previewing.role}</div>
+              <div><span className="text-muted-foreground">Rola:</span> {roleLabels[previewing.role]}</div>
               {previewing.role === 'PILOT' && (
                 <div><span className="text-muted-foreground">Numer licencji pilota:</span> {previewing.pilotLicenseNumber ?? 'Brak'}</div>
               )}

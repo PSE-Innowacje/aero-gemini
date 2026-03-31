@@ -121,7 +121,7 @@ Used by most list endpoints:
   - `last_name` (str)
   - `email` (email)
   - `weight` (int, 30..200)
-  - `role` (`PILOT|OBSERVER|CREW`)
+  - `role` (`PILOT|OBSERVER`)
   - `pilot_license_number` (str | null)
   - `license_valid_until` (date | null)
   - `training_valid_until` (date)

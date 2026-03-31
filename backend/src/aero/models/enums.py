@@ -11,7 +11,6 @@ class UserRole(str, Enum):
 class CrewRole(str, Enum):
     PILOT = "PILOT"
     OBSERVER = "OBSERVER"
-    CREW = "CREW"
 
 
 class ResourceStatus(str, Enum):
