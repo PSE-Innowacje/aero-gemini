@@ -18,7 +18,10 @@ Tech stack requirements:
 
 When writing backend code, follow these logging rules:
 
-1. Use structured logs: instead of plain strings, emit logs as JSON or dicts (e.g., using `structlog` or the standard `logging` module with proper formatting).
+1. Use dual-sink structured logging:
+   - Console sink: human-readable, one-line inline logs with message + key/value context (e.g., `event=... user_id=... duration_ms=...`).
+   - File sink: JSON logs with full context and traceback data for observability pipelines.
+   - Both sinks must contain the same core fields (timestamp, level, event, request_id/correlation_id, context keys).
 2. Log levels (Severity):
    - DEBUG: detailed function input/output, SQL queries.
    - INFO: key business events (e.g., "User X created an order").
