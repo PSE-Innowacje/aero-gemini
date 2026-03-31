@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from loguru import logger
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ router = APIRouter()
 
 def _raise_duplicate_registration_conflict(db: Session) -> None:
     db.rollback()
+    logger.bind(event="helicopter_api", action="write").warning("helicopter_registration_conflict")
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Registration number already exists")
 
 
@@ -24,8 +26,11 @@ def create_helicopter(
     _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
 ) -> HelicopterRead:
     repo = BaseRepository(db, Helicopter)
+    logger.bind(event="helicopter_api", action="create").info("helicopter_create_started")
     try:
-        return HelicopterRead.model_validate(repo.create(payload.model_dump()))
+        result = HelicopterRead.model_validate(repo.create(payload.model_dump()))
+        logger.bind(event="helicopter_api", action="create", helicopter_id=result.id).info("helicopter_create_completed")
+        return result
     except IntegrityError:
         _raise_duplicate_registration_conflict(db)
 
@@ -40,7 +45,12 @@ def list_helicopters(
     _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR, UserRole.PILOT)),
 ) -> list[HelicopterRead]:
     repo = BaseRepository(db, Helicopter)
-    return [HelicopterRead.model_validate(item) for item in repo.list(skip=skip, limit=limit, sort_by=sort_by, sort_dir=sort_dir)]
+    items = [
+        HelicopterRead.model_validate(item)
+        for item in repo.list(skip=skip, limit=limit, sort_by=sort_by, sort_dir=sort_dir)
+    ]
+    logger.bind(event="helicopter_api", action="list", result_count=len(items)).debug("helicopter_list_completed")
+    return items
 
 
 @router.patch("/{helicopter_id}", response_model=HelicopterRead)
@@ -53,9 +63,14 @@ def update_helicopter(
     repo = BaseRepository(db, Helicopter)
     model = repo.get(helicopter_id)
     if not model:
+        logger.bind(event="helicopter_api", action="update", helicopter_id=helicopter_id).warning(
+            "helicopter_update_not_found"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Helicopter not found")
     try:
-        return HelicopterRead.model_validate(repo.update(model, payload.model_dump(exclude_unset=True)))
+        result = HelicopterRead.model_validate(repo.update(model, payload.model_dump(exclude_unset=True)))
+        logger.bind(event="helicopter_api", action="update", helicopter_id=result.id).info("helicopter_update_completed")
+        return result
     except IntegrityError:
         _raise_duplicate_registration_conflict(db)
 
@@ -70,8 +85,15 @@ def replace_helicopter(
     repo = BaseRepository(db, Helicopter)
     model = repo.get(helicopter_id)
     if not model:
+        logger.bind(event="helicopter_api", action="replace", helicopter_id=helicopter_id).warning(
+            "helicopter_replace_not_found"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Helicopter not found")
     try:
-        return HelicopterRead.model_validate(repo.update(model, payload.model_dump()))
+        result = HelicopterRead.model_validate(repo.update(model, payload.model_dump()))
+        logger.bind(event="helicopter_api", action="replace", helicopter_id=result.id).info(
+            "helicopter_replace_completed"
+        )
+        return result
     except IntegrityError:
         _raise_duplicate_registration_conflict(db)

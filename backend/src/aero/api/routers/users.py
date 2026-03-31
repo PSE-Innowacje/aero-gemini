@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from aero.api.deps import require_roles
@@ -21,7 +22,9 @@ def list_users(
     _=Depends(require_roles(UserRole.ADMIN, UserRole.SUPERVISOR)),
 ) -> list[UserRead]:
     repo = BaseRepository(db, User)
-    return [UserRead.model_validate(item) for item in repo.list(skip=skip, limit=limit, sort_by=sort_by, sort_dir=sort_dir)]
+    items = [UserRead.model_validate(item) for item in repo.list(skip=skip, limit=limit, sort_by=sort_by, sort_dir=sort_dir)]
+    logger.bind(event="user_api", action="list", result_count=len(items)).debug("user_list_completed")
+    return items
 
 
 @router.patch("/{user_id}", response_model=UserRead)
@@ -34,6 +37,8 @@ def update_user(
     repo = BaseRepository(db, User)
     user = repo.get(user_id)
     if not user:
+        logger.bind(event="user_api", action="update", user_id=user_id).warning("user_update_not_found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     updated = repo.update(user, payload.model_dump(exclude_unset=True))
+    logger.bind(event="user_api", action="update", user_id=updated.id).info("user_update_completed")
     return UserRead.model_validate(updated)

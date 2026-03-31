@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -30,6 +31,7 @@ def create_planned_operation(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> PlannedOperationRead:
+    logger.bind(event="planned_operation_api", action="create", user_id=user.id).info("planned_operation_create_started")
     repo = BaseRepository(db, PlannedOperation)
     data = payload.model_dump()
     data["created_by"] = user.id
@@ -37,6 +39,12 @@ def create_planned_operation(
     operation = repo.create(data)
     add_audit(db, operation.id, "create", user.id, None, {"status": operation.status.value})
     db.commit()
+    logger.bind(
+        event="planned_operation_api",
+        action="create",
+        operation_id=operation.id,
+        user_id=user.id,
+    ).info("planned_operation_create_completed")
     return PlannedOperationRead.model_validate(operation)
 
 
@@ -52,6 +60,14 @@ def list_planned_operations(
     if status_filter is not None:
         stmt = stmt.where(PlannedOperation.status == WorkflowStatus(status_filter))
     items = list(db.scalars(stmt))
+    logger.bind(
+        event="planned_operation_api",
+        action="list",
+        status_filter=status_filter,
+        skip=skip,
+        limit=limit,
+        result_count=len(items),
+    ).debug("planned_operation_list_completed")
     return [PlannedOperationRead.model_validate(item) for item in items]
 
 
@@ -65,12 +81,18 @@ def update_planned_operation(
     repo = BaseRepository(db, PlannedOperation)
     op = repo.get(operation_id)
     if not op:
+        logger.bind(event="planned_operation_api", action="update", operation_id=operation_id, user_id=user.id).warning(
+            "planned_operation_update_not_found"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planned operation not found")
     validate_edit_window(op, user)
     before = {"status": op.status.value, "description": op.short_description}
     op = repo.update(op, payload.model_dump(exclude_unset=True))
     add_audit(db, op.id, "update", user.id, before, {"status": op.status.value, "description": op.short_description})
     db.commit()
+    logger.bind(event="planned_operation_api", action="update", operation_id=op.id, user_id=user.id).info(
+        "planned_operation_update_completed"
+    )
     return PlannedOperationRead.model_validate(op)
 
 
@@ -84,10 +106,24 @@ def change_operation_status(
     repo = BaseRepository(db, PlannedOperation)
     op = repo.get(operation_id)
     if not op:
+        logger.bind(
+            event="planned_operation_api",
+            action="status_change",
+            operation_id=operation_id,
+            requested_status=payload.status.value,
+            user_id=user.id,
+        ).warning("planned_operation_status_change_not_found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planned operation not found")
     enforce_status_transition(op.status, payload.status, user)
     before = {"status": op.status.value}
     op = repo.update(op, {"status": payload.status})
     add_audit(db, op.id, "status_change", user.id, before, {"status": op.status.value})
     db.commit()
+    logger.bind(
+        event="planned_operation_api",
+        action="status_change",
+        operation_id=op.id,
+        requested_status=payload.status.value,
+        user_id=user.id,
+    ).info("planned_operation_status_change_completed")
     return PlannedOperationRead.model_validate(op)

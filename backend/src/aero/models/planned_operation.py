@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Column, Date, Enum, Float, ForeignKey, Integer, JSON, String, Table, Text
+from sqlalchemy import Column, Date, Enum, Float, ForeignKey, JSON, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aero.core.database import Base

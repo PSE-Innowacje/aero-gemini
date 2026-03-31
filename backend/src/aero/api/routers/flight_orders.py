@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from aero.api.deps import require_roles
@@ -22,6 +23,13 @@ def create_flight_order(
     db: Session = Depends(get_db),
     _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> FlightOrderRead:
+    logger.bind(
+        event="flight_order_api",
+        action="create",
+        helicopter_id=payload.helicopter_id,
+        pilot_id=payload.pilot_id,
+        crew_count=len(payload.crew_ids),
+    ).info("flight_order_create_started")
     helicopter, pilot, crew, crew_weight = validate_flight_order_constraints(
         db=db,
         helicopter_id=payload.helicopter_id,
@@ -51,6 +59,7 @@ def create_flight_order(
     )
     db.commit()
     db.refresh(order)
+    logger.bind(event="flight_order_api", action="create", order_id=order.id).info("flight_order_create_completed")
     return FlightOrderRead.model_validate(order)
 
 
@@ -62,7 +71,15 @@ def list_flight_orders(
     _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR, UserRole.PILOT)),
 ) -> list[FlightOrderRead]:
     repo = BaseRepository(db, FlightOrder)
-    return [FlightOrderRead.model_validate(item) for item in repo.list(skip=skip, limit=limit)]
+    items = [FlightOrderRead.model_validate(item) for item in repo.list(skip=skip, limit=limit)]
+    logger.bind(
+        event="flight_order_api",
+        action="list",
+        skip=skip,
+        limit=limit,
+        result_count=len(items),
+    ).debug("flight_order_list_completed")
+    return items
 
 
 @router.patch("/{order_id}", response_model=FlightOrderRead)
@@ -75,6 +92,9 @@ def update_flight_order(
     repo = BaseRepository(db, FlightOrder)
     order = repo.get(order_id)
     if not order:
+        logger.bind(event="flight_order_api", action="update", order_id=order_id).warning(
+            "flight_order_update_not_found"
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flight order not found")
 
     data = payload.model_dump(exclude_unset=True, exclude={"planned_operation_ids"})
@@ -83,4 +103,5 @@ def update_flight_order(
         order.planned_operations = get_planned_operations(db, payload.planned_operation_ids)
         db.commit()
         db.refresh(order)
+    logger.bind(event="flight_order_api", action="update", order_id=order.id).info("flight_order_update_completed")
     return FlightOrderRead.model_validate(order)
