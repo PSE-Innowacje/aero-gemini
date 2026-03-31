@@ -14,6 +14,7 @@ dependencies = [
     "geopy>=2.4.1",
     "hatch-vcs",
     "httpx",
+    "loguru>=0.7.3",
     "lxml>=6.0.2",
     "pendulum[test]",
     "pydantic",

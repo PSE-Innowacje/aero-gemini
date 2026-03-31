@@ -1,6 +1,7 @@
 from datetime import date
 
 from fastapi import HTTPException, status
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from aero.models.crew_member import CrewMember
@@ -17,17 +18,20 @@ def validate_flight_order_constraints(
 ) -> tuple[Helicopter, CrewMember, list[CrewMember], int]:
     helicopter = db.get(Helicopter, helicopter_id)
     pilot = db.get(CrewMember, pilot_id)
-    crew = [
-        member
-        for member in (db.get(CrewMember, crew_id) for crew_id in crew_ids)
-        if member is not None
-    ]
+    crew_members = [db.get(CrewMember, crew_id) for crew_id in crew_ids]
 
-    if not helicopter or not pilot or any(member is None for member in crew):
+    if helicopter is None or pilot is None or any(member is None for member in crew_members):
+        logger.warning(
+            "Related entity not found for flight order: helicopter_id={}, pilot_id={}, crew_ids={}",
+            helicopter_id,
+            pilot_id,
+            crew_ids,
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Related entity not found"
         )
 
+    crew = [member for member in crew_members if member is not None]
     today = date.today()
     if helicopter.inspection_valid_until and helicopter.inspection_valid_until < today:
         raise HTTPException(
@@ -35,7 +39,7 @@ def validate_flight_order_constraints(
         )
     if pilot.license_valid_until and pilot.license_valid_until < today:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pilot license expired")
-    if any(member.training_valid_until < today for member in crew):
+    if any(member.training_valid_until and member.training_valid_until < today for member in crew):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Crew training expired")
 
     crew_weight = int(sum(member.weight for member in crew))
@@ -48,7 +52,7 @@ def validate_flight_order_constraints(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Estimated distance exceeds range"
         )
 
-    return helicopter, pilot, [member for member in crew if member is not None], crew_weight
+    return helicopter, pilot, crew, crew_weight
 
 
 def assign_relationships(order: FlightOrder, crew: list[CrewMember]) -> None:

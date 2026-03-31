@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastkml import kml
 from fastapi import HTTPException, status
+from loguru import logger  # pyright: ignore[reportMissingImports]
 from sqlalchemy.orm import Session
 
 from aero.models.audit import PlannedOperationAudit
@@ -60,6 +61,7 @@ def parse_kml_distance(path: str | None) -> float:
     try:
         document = kml.KML.from_string(Path(path).read_bytes())
     except Exception:  # noqa: BLE001
+        logger.exception("Failed to parse KML file: {}", path)
         return 0.0
 
     coords: list[tuple[float, float]] = []
@@ -77,9 +79,11 @@ def enforce_status_transition(current: WorkflowStatus, new: WorkflowStatus, user
         return
     allowed = ALLOWED_TRANSITIONS.get(current, set())
     if new not in allowed:
+        logger.warning("Invalid workflow transition: {} -> {}", current, new)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status transition")
     if current == WorkflowStatus.DRAFT and new in {WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED}:
         if user.role not in {UserRole.SUPERVISOR, UserRole.ADMIN}:
+            logger.warning("Unauthorized transition attempt by role: {}", user.role)
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Supervisor role required")
 
 
