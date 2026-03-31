@@ -70,7 +70,7 @@ const CrewPage: React.FC = () => {
               <TableHead>Email</TableHead>
               <TableHead>Rola</TableHead>
               <TableHead>Licencja ważna do</TableHead>
-              <TableHead>Podgląd licencji</TableHead>
+              <TableHead>Podgląd uprawnień</TableHead>
               <TableHead>Waga (kg)</TableHead>
               <TableHead className="w-24" />
             </TableRow>
@@ -169,7 +169,7 @@ const CrewPage: React.FC = () => {
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Podgląd licencji</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Podgląd uprawnień</DialogTitle></DialogHeader>
           {previewing && (
             <div className="space-y-3 text-sm">
               <div><span className="text-muted-foreground">Członek załogi:</span> {previewing.name}</div>
