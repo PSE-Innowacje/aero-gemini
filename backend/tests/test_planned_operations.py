@@ -1,5 +1,6 @@
 """Planned operation workflow and audit tests."""
 
+import json
 from datetime import date, timedelta
 
 from sqlalchemy import select
@@ -14,7 +15,14 @@ def _create_operation(client, token: str, authz, project_code: str = "PRJ-T1") -
         json={
             "project_code": project_code,
             "short_description": "Test operation",
-            "kml_file_path": None,
+            "route_geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [21.0, 52.1],
+                    [21.1, 52.2],
+                    [21.2, 52.25],
+                ],
+            },
             "proposed_date_from": str(date.today() + timedelta(days=1)),
             "proposed_date_to": str(date.today() + timedelta(days=2)),
             "activities": [{"name": "survey"}],
@@ -29,6 +37,8 @@ def test_create_planned_operation_and_audit_entry(client, planner_token, authz, 
     created = _create_operation(client, planner_token, authz, "PRJ-AUDIT")
     assert created["project_code"] == "PRJ-AUDIT"
     assert created["status"] == 1
+    assert created["start_point"] == {"longitude": 21.0, "latitude": 52.1}
+    assert created["end_point"] == {"longitude": 21.2, "latitude": 52.25}
 
     audit_rows = list(
         db_session.scalars(
@@ -37,6 +47,49 @@ def test_create_planned_operation_and_audit_entry(client, planner_token, authz, 
     )
     assert len(audit_rows) == 1
     assert audit_rows[0].action == "create"
+
+
+def test_create_planned_operation_with_kml_upload(client, planner_token, authz) -> None:
+    kml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <Placemark>
+      <LineString>
+        <coordinates>21.0000,52.1000,0 21.1000,52.2000,0 21.2000,52.2500,0</coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>
+"""
+    payload_json = json.dumps(
+        {
+            "project_code": "PRJ-KML-UPLOAD",
+            "short_description": "Operation created from KML upload",
+            "proposed_date_from": str(date.today() + timedelta(days=1)),
+            "proposed_date_to": str(date.today() + timedelta(days=2)),
+            "activities": [{"name": "survey"}],
+            "contacts": ["ops@example.com"],
+        }
+    )
+    response = client.post(
+        "/api/planned-operations/upload-kml",
+        headers=authz(planner_token),
+        data={"payload_json": payload_json},
+        files={
+            "kml_file": (
+                "route.kml",
+                kml_content,
+                "application/vnd.google-earth.kml+xml",
+            )
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["project_code"] == "PRJ-KML-UPLOAD"
+    assert body["points_count"] == 3
+    assert body["start_point"] == {"longitude": 21.0, "latitude": 52.1}
+    assert body["end_point"] == {"longitude": 21.2, "latitude": 52.25}
+    assert body["distance_km"] > 0
 
 
 def test_status_transition_requires_supervisor_role(client, planner_token, authz) -> None:
@@ -94,6 +147,8 @@ def test_planned_operations_status_filter(client, planner_token, supervisor_toke
     assert len(items) == 1
     assert items[0]["id"] == second["id"]
     assert items[0]["status"] == 2
+    assert items[0]["start_point"] == {"longitude": 21.0, "latitude": 52.1}
+    assert items[0]["end_point"] == {"longitude": 21.2, "latitude": 52.25}
     assert items[0]["id"] != first["id"]
 
 
@@ -104,7 +159,13 @@ def test_create_planned_operation_forbidden_for_pilot(client, pilot_user_token, 
         json={
             "project_code": "PRJ-PILOT",
             "short_description": "Pilot cannot create",
-            "kml_file_path": None,
+            "route_geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [21.0, 52.1],
+                    [21.1, 52.2],
+                ],
+            },
         },
     )
     assert response.status_code == 403

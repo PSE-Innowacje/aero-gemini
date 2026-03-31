@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Column, Date, Enum, Float, ForeignKey, JSON, String, Table, Text
+from sqlalchemy import Column, Date, Enum, Float, ForeignKey, Integer, JSON, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aero.core.database import Base
@@ -30,7 +30,9 @@ class PlannedOperation(TimestampedModel):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     project_code: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     short_description: Mapped[str] = mapped_column(String(500), nullable=False)
-    kml_file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    route_geometry: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    route_bbox: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
+    points_count: Mapped[int] = mapped_column(Integer, default=0)
     proposed_date_from: Mapped[date | None] = mapped_column(Date, nullable=True)
     proposed_date_to: Mapped[date | None] = mapped_column(Date, nullable=True)
     planned_date_from: Mapped[date | None] = mapped_column(Date, nullable=True)
