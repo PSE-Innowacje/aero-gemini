@@ -44,7 +44,7 @@ export const useAuthStore = create<AuthState>()(
         const user: User = {
           id: String(claims.sub ?? ''),
           email,
-          name: email,
+          name: result.first_name || email.split('@')[0] || email,
           role: result.role as Role,
         };
         setApiToken(token);

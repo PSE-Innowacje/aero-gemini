@@ -98,7 +98,7 @@ const toUiOrder = (o: any): FlightOrder => ({
 
 // Auth
 export const loginRequest = (email: string, password: string) =>
-  request<{ access_token: string; token_type: string; role: Role }>('/auth/login', 'POST', { email, password });
+  request<{ access_token: string; token_type: string; role: Role; first_name: string }>('/auth/login', 'POST', { email, password });
 
 // Users
 export const fetchUsers = async (): Promise<User[]> => {

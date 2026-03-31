@@ -50,4 +50,4 @@ def login(db: Session, payload: LoginRequest) -> TokenResponse:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     token = create_access_token(subject=str(user.id), role=user.role.value)
     logger.bind(event="login", user_id=user.id, email=email, role=user.role.value).info("login_token_created")
-    return TokenResponse(access_token=token, role=user.role)
+    return TokenResponse(access_token=token, role=user.role, first_name=user.first_name)
