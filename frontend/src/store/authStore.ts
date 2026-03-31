@@ -24,6 +24,11 @@ const parseJwtPayload = (token: string): Record<string, unknown> => {
   }
 };
 
+const isTokenStructurallyValid = (token: string | null | undefined): token is string => {
+  if (!token) return false;
+  return token.split('.').length === 3;
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -32,6 +37,9 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         const result = await loginRequest(email, password);
         const token = result.access_token;
+        if (!isTokenStructurallyValid(token)) {
+          throw new Error('Invalid access token format');
+        }
         const claims = parseJwtPayload(token);
         const user: User = {
           id: String(claims.sub ?? ''),
@@ -46,7 +54,7 @@ export const useAuthStore = create<AuthState>()(
         setApiToken(null);
         set({ user: null, token: null });
       },
-      isAuthenticated: () => !!get().token,
+      isAuthenticated: () => isTokenStructurallyValid(get().token),
       hasRole: (roles: Role[]) => {
         const user = get().user;
         return !!user && roles.includes(user.role);
@@ -55,7 +63,15 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       onRehydrateStorage: () => (state) => {
-        setApiToken(state?.token ?? null);
+        if (!isTokenStructurallyValid(state?.token)) {
+          setApiToken(null);
+          if (state) {
+            state.token = null;
+            state.user = null;
+          }
+          return;
+        }
+        setApiToken(state.token);
       },
     }
   )

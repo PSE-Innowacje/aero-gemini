@@ -24,6 +24,9 @@ export interface CrewMember {
   name: string;
   role: CrewRole;
   licenseExpiry: string;
+  pilotLicenseNumber?: string | null;
+  licenseValidUntil?: string | null;
+  trainingValidUntil: string;
   weight: number;
 }
 

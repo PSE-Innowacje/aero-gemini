@@ -10,6 +10,12 @@ const withAuthHeaders = (): HeadersInit => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+const handleUnauthorized = () => {
+  localStorage.removeItem('auth-storage');
+  // Force a clean auth state so stale/invalid token cannot keep app "logged in".
+  window.location.assign('/login');
+};
+
 async function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
@@ -19,6 +25,10 @@ async function request<T>(path: string, method: Method = 'GET', body?: unknown):
     },
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw new Error('Session expired. Please log in again.');
+  }
   if (!response.ok) {
     const fallback = `Request failed (${response.status})`;
     let message = fallback;
@@ -48,6 +58,9 @@ const toUiCrew = (c: any): CrewMember => ({
   name: `${c.first_name} ${c.last_name}`.trim(),
   role: c.role,
   licenseExpiry: c.license_valid_until ?? c.training_valid_until,
+  pilotLicenseNumber: c.pilot_license_number ?? null,
+  licenseValidUntil: c.license_valid_until ?? null,
+  trainingValidUntil: c.training_valid_until,
   weight: c.weight,
 });
 

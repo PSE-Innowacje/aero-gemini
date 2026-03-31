@@ -26,11 +26,13 @@ const HelicoptersPage: React.FC = () => {
   const createMut = useMutation({
     mutationFn: (d: Omit<Helicopter, 'id'>) => createHelicopter(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['helicopters'] }); setOpen(false); toast({ title: 'Dodano helikopter' }); },
+    onError: (error: Error) => { toast({ title: 'Błąd zapisu', description: error.message, variant: 'destructive' }); },
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<Helicopter> & { id: string }) => updateHelicopter(id, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['helicopters'] }); setOpen(false); toast({ title: 'Zaktualizowano' }); },
+    onError: (error: Error) => { toast({ title: 'Błąd aktualizacji', description: error.message, variant: 'destructive' }); },
   });
 
   const openCreate = () => { setEditing(null); setForm({ registration: '', type: '', status: 'active', maxRange: 0, maxWeight: 0 }); setOpen(true); };
