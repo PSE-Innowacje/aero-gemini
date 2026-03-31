@@ -9,7 +9,7 @@ from aero.schemas.common import ORMModel
 class HelicopterBase(ORMModel):
     registration_number: str = Field(max_length=30)
     type: str
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=100)
     max_crew: int = Field(ge=1, le=10)
     max_crew_weight: int = Field(ge=1, le=1000)
     status: ResourceStatus = ResourceStatus.ACTIVE
@@ -30,7 +30,7 @@ class HelicopterCreate(HelicopterBase):
 class HelicopterUpdate(ORMModel):
     registration_number: str | None = Field(default=None, max_length=30)
     type: str | None = None
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=100)
     max_crew: int | None = Field(default=None, ge=1, le=10)
     max_crew_weight: int | None = Field(default=None, ge=1, le=1000)
     status: ResourceStatus | None = None

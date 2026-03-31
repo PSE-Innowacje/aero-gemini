@@ -35,6 +35,14 @@ def test_post_helicopter_validation_error_when_active_without_inspection(client,
     assert response.status_code == 422
 
 
+def test_post_helicopter_validation_error_when_description_too_long(client, planner_token, authz) -> None:
+    payload = _helicopter_payload("SP-POST-DESC-LONG")
+    payload["description"] = "x" * 101
+    response = client.post("/api/helicopters", headers=authz(planner_token), json=payload)
+
+    assert response.status_code == 422
+
+
 def test_post_helicopter_duplicate_registration_returns_conflict(client, planner_token, authz) -> None:
     first = client.post("/api/helicopters", headers=authz(planner_token), json=_helicopter_payload("SP-DUP-POST"))
     second = client.post("/api/helicopters", headers=authz(planner_token), json=_helicopter_payload("SP-DUP-POST"))
@@ -80,6 +88,25 @@ def test_put_helicopter_validation_error_for_invalid_max_crew(client, planner_to
     response = client.put(f"/api/helicopters/{helicopter_id}", headers=authz(planner_token), json=payload)
 
     assert response.status_code == 422
+
+
+def test_patch_helicopter_requires_inspection_when_status_set_to_active(client, planner_token, authz) -> None:
+    created = client.post(
+        "/api/helicopters",
+        headers=authz(planner_token),
+        json=_helicopter_payload("SP-PATCH1", status="inactive", inspection_valid_until=None),
+    )
+    assert created.status_code == 200
+    helicopter_id = created.json()["id"]
+
+    response = client.patch(
+        f"/api/helicopters/{helicopter_id}",
+        headers=authz(planner_token),
+        json={"status": "active", "inspection_valid_until": None},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "inspection_valid_until is required when helicopter is active"
 
 
 def test_put_helicopter_not_found(client, planner_token, authz) -> None:

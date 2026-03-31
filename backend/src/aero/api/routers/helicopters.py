@@ -6,7 +6,7 @@ from typing import NoReturn
 
 from aero.api.deps import require_roles
 from aero.core.database import get_db
-from aero.models.enums import UserRole
+from aero.models.enums import ResourceStatus, UserRole
 from aero.models.helicopter import Helicopter
 from aero.repositories.base import BaseRepository
 from aero.schemas.helicopter import HelicopterCreate, HelicopterRead, HelicopterUpdate
@@ -18,6 +18,18 @@ def _raise_duplicate_registration_conflict(db: Session) -> NoReturn:
     db.rollback()
     logger.bind(event="helicopter_api", action="write").warning("helicopter_registration_conflict")
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Registration number already exists")
+
+
+def _validate_active_requires_inspection(
+    *,
+    status_value: ResourceStatus,
+    inspection_valid_until,
+) -> None:
+    if status_value == ResourceStatus.ACTIVE and inspection_valid_until is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="inspection_valid_until is required when helicopter is active",
+        )
 
 
 @router.post("", response_model=HelicopterRead)
@@ -68,8 +80,13 @@ def update_helicopter(
             "helicopter_update_not_found"
         )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Helicopter not found")
+    changes = payload.model_dump(exclude_unset=True)
+    _validate_active_requires_inspection(
+        status_value=changes.get("status", model.status),
+        inspection_valid_until=changes.get("inspection_valid_until", model.inspection_valid_until),
+    )
     try:
-        result = HelicopterRead.model_validate(repo.update(model, payload.model_dump(exclude_unset=True)))
+        result = HelicopterRead.model_validate(repo.update(model, changes))
         logger.bind(event="helicopter_api", action="update", helicopter_id=result.id).info("helicopter_update_completed")
         return result
     except IntegrityError:
