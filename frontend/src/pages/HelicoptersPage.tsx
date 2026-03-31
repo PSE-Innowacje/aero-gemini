@@ -127,7 +127,7 @@ const HelicoptersPage: React.FC = () => {
               <TableHead>Status</TableHead>
               <TableHead>Ważność przeglądu</TableHead>
               <TableHead>Zasięg (km)</TableHead>
-              <TableHead>Maks. masa (kg)</TableHead>
+              <TableHead>Maks. udźwig załogi (kg)</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
@@ -241,11 +241,11 @@ const HelicoptersPage: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="helicopter-max-weight">Maks. masa (kg)</Label>
+              <Label htmlFor="helicopter-max-weight">Maks. udźwig załogi (kg)</Label>
               <Input
                 id="helicopter-max-weight"
                 type="number"
-                placeholder="Maks. masa (kg)"
+                placeholder="Maks. udźwig załogi (kg)"
                 value={form.maxWeight || ''}
                 onChange={e => setForm(f => ({ ...f, maxWeight: Number(e.target.value) }))}
                 required
