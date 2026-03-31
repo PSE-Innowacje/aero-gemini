@@ -92,6 +92,14 @@ const HelicoptersPage: React.FC = () => {
       });
       return;
     }
+    if (!Number.isInteger(form.maxWeight) || form.maxWeight < 1 || form.maxWeight > 1000) {
+      toast({
+        title: 'Błąd walidacji',
+        description: 'Maks. udźwig załogi musi być w zakresie 1-1000 kg.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (form.status === 'active' && !form.inspectionValidUntil) {
       toast({
         title: 'Błąd walidacji',
@@ -246,10 +254,14 @@ const HelicoptersPage: React.FC = () => {
                 id="helicopter-max-weight"
                 type="number"
                 placeholder="Maks. udźwig załogi (kg)"
+                min={1}
+                max={1000}
+                step={1}
                 value={form.maxWeight || ''}
                 onChange={e => setForm(f => ({ ...f, maxWeight: Number(e.target.value) }))}
                 required
               />
+              <p className="text-xs text-muted-foreground">Dozwolony zakres: 1-1000 kg</p>
             </div>
             <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
           </form>
