@@ -162,6 +162,7 @@ export const updateCrewMember = async (id: string, data: Partial<CrewMember>): P
     payload.first_name = firstName || data.name;
     payload.last_name = rest.join(' ') || '-';
   }
+  if (data.email !== undefined) payload.email = data.email;
   if (data.weight !== undefined) payload.weight = data.weight;
   if (data.role !== undefined) payload.role = data.role;
   if (data.licenseExpiry !== undefined) {
@@ -173,7 +174,7 @@ export const updateCrewMember = async (id: string, data: Partial<CrewMember>): P
 
 // Landing Sites
 export const fetchLandingSites = async (): Promise<LandingSite[]> => (await request<any[]>('/landing-sites')).map(toUiSite);
-export const createLandingSite = async (data: Omit<LandingSite, 'id'>): Promise<LandingSite> =>
+export const createLandingSite = async (data: Pick<LandingSite, 'name' | 'latitude' | 'longitude'>): Promise<LandingSite> =>
   toUiSite(await request('/landing-sites', 'POST', { name: data.name, latitude: data.latitude, longitude: data.longitude }));
 export const updateLandingSite = async (id: string, data: Partial<LandingSite>): Promise<LandingSite> => {
   const payload: Record<string, unknown> = {};
@@ -204,6 +205,7 @@ export const updateOperation = async (id: string, data: Partial<PlannedOperation
     return toUiOperation(await request(`/planned-operations/${id}/status`, 'POST', { status: data.status }));
   }
   const payload: Record<string, unknown> = {};
+  if (data.projectCode !== undefined) payload.project_code = data.projectCode;
   if (data.description !== undefined) payload.short_description = data.description;
   if (data.startDate !== undefined) payload.planned_date_from = data.startDate;
   if (data.endDate !== undefined) payload.planned_date_to = data.endDate;

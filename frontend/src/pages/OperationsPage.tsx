@@ -55,10 +55,12 @@ const OperationsPage: React.FC = () => {
   const createMut = useMutation({
     mutationFn: (d: Omit<PlannedOperation, 'id'>) => createOperation(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['operations'] }); setOpen(false); toast({ title: 'Dodano operację' }); },
+    onError: (error: Error) => { toast({ title: 'Nie udało się dodać operacji', description: error.message, variant: 'destructive' }); },
   });
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<PlannedOperation> & { id: string }) => updateOperation(id, d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['operations'] }); setOpen(false); setDetailOpen(false); toast({ title: 'Zaktualizowano' }); },
+    onError: (error: Error) => { toast({ title: 'Nie udało się zaktualizować operacji', description: error.message, variant: 'destructive' }); },
   });
 
   const filtered = statusFilter === 'all' ? operations : operations.filter(o => o.status === Number(statusFilter));

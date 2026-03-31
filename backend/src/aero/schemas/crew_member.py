@@ -30,6 +30,7 @@ class CrewMemberCreate(CrewMemberBase):
 class CrewMemberUpdate(ORMModel):
     first_name: str | None = None
     last_name: str | None = None
+    email: EmailStr | None = None
     weight: int | None = Field(default=None, ge=30, le=200)
     role: CrewRole | None = None
     pilot_license_number: str | None = None

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from typing import NoReturn
 
 from aero.api.deps import require_roles
 from aero.core.database import get_db
@@ -13,7 +14,7 @@ from aero.schemas.helicopter import HelicopterCreate, HelicopterRead, Helicopter
 router = APIRouter()
 
 
-def _raise_duplicate_registration_conflict(db: Session) -> None:
+def _raise_duplicate_registration_conflict(db: Session) -> NoReturn:
     db.rollback()
     logger.bind(event="helicopter_api", action="write").warning("helicopter_registration_conflict")
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Registration number already exists")
@@ -23,7 +24,7 @@ def _raise_duplicate_registration_conflict(db: Session) -> None:
 def create_helicopter(
     payload: HelicopterCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> HelicopterRead:
     repo = BaseRepository(db, Helicopter)
     logger.bind(event="helicopter_api", action="create").info("helicopter_create_started")
@@ -58,7 +59,7 @@ def update_helicopter(
     helicopter_id: int,
     payload: HelicopterUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> HelicopterRead:
     repo = BaseRepository(db, Helicopter)
     model = repo.get(helicopter_id)
@@ -80,7 +81,7 @@ def replace_helicopter(
     helicopter_id: int,
     payload: HelicopterCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
 ) -> HelicopterRead:
     repo = BaseRepository(db, Helicopter)
     model = repo.get(helicopter_id)
