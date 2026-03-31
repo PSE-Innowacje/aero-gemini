@@ -1,0 +1,54 @@
+{
+    // For format details, see https://aka.ms/devcontainer.json.
+    // For config options, see the README at:
+    // https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
+    "name": "aero-dev-container",
+    "dockerComposeFile": [
+        "../../infra/docker-compose.yml"
+    ],
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {}
+    },
+    // name of the service that devcontainer should connect to once running
+    "service": "backend",
+    "workspaceFolder": "/workspace/backend",
+    "postCreateCommand": "git config --global --add safe.directory /workspace",
+    "customizations": {
+        "vscode": {
+            // Set *default* container specific settings.json values on container create.
+            "settings": {
+                "editor.tabSize": 4,
+                "editor.autoIndent": "advanced",
+                "editor.formatOnPaste": true,
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                        "source.fixAll": "explicit",
+                        "source.organizeImports": "explicit"
+                    }
+                },
+                "github.copilot.nextEditSuggestions.enabled": true,
+                "jupyter.notebookFileRoot": "${workspaceFolder}",
+                "notebook.formatOnSave.enabled": true,
+                "notebook.codeActionsOnSave": {
+                    "notebook.source.fixAll": "explicit",
+                    "notebook.source.organizeImports": "explicit"
+                },
+                "python.terminal.activateEnvInCurrentTerminal": true,
+                "python.terminal.activateEnvironment": true,
+                "pythonTestExplorer.testFramework": "pytest",
+                "python.testing.pytestEnabled": true,
+                "python.testing.pytestArgs": [
+                    "tests"
+                ],
+                "python.analysis.extraPaths": [
+                    "${workspaceFolder}/src"
+                ],
+                "ruff.enable": true,
+                "ruff.lint.enable": true,
+                "extensions.verifySignature": false
+            }
+        }
+    }
+}
