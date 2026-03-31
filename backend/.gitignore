@@ -183,7 +183,7 @@ gitlab.crt
 
 # Secrets
 #  Ignore all actual secret files
-.localdev/secrets/**
+infra/secrets/**
 #  But keep the templates (directory and content)
-!.localdev/secrets/templates/
-!.localdev/secrets/templates/**
+!infra/secrets/templates/
+!infra/secrets/templates/**
