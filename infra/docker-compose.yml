@@ -26,6 +26,10 @@ services:
     image: node:22-bookworm
     container_name: "${COMPOSE_PROJECT_NAME}_frontend"
     working_dir: /workspace/frontend
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:8000/api}"
     ports:
       - "8080:8080"
     volumes:

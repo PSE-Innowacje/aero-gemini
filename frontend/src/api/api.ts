@@ -10,7 +10,9 @@ import type {
 } from '@/types';
 import { getApiToken } from '@/api/token';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL =
+  (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ||
+  'http://localhost:8000/api';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT';
 

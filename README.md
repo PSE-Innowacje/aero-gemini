@@ -1,5 +1,7 @@
 # 🚁 AERO — Product Requirements Document v2.0
 
+Development setup guide for contributors: `DEVELOPMENT.md`.
+
 ---
 
 ## 1. 📋 Opis ogólny
