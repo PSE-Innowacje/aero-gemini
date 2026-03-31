@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchLandingSites, createLandingSite, updateLandingSite } from '@/api/api';
 import type { LandingSite } from '@/types';
@@ -18,6 +18,7 @@ const LandingSitesPage: React.FC = () => {
   const [editing, setEditing] = useState<LandingSite | null>(null);
   const [form, setForm] = useState({ name: '', latitude: 50.06, longitude: 19.94 });
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
 
   const createMut = useMutation({
@@ -64,6 +65,11 @@ const LandingSitesPage: React.FC = () => {
   }));
 
   const formMarker: MapMarker[] = [{ id: 'selected', lat: form.latitude, lng: form.longitude }];
+  const filteredSites = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return sites;
+    return sites.filter((site) => site.name.toLowerCase().includes(query));
+  }, [search, sites]);
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
@@ -74,35 +80,52 @@ const LandingSitesPage: React.FC = () => {
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
       </div>
 
-      <LeafletMap
-        center={[50.06, 19.94]}
-        zoom={8}
-        markers={siteMarkers}
-        onMarkerClick={handleMarkerClick}
-        selectedMarkerId={selectedSiteId}
-      />
+      <div className="w-full">
+        <LeafletMap
+          center={[50.06, 19.94]}
+          zoom={8}
+          markers={siteMarkers}
+          onMarkerClick={handleMarkerClick}
+          selectedMarkerId={selectedSiteId}
+          className="h-[440px]"
+        />
+      </div>
 
-      <div className="border rounded-lg">
-        <Table>
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Szukaj lądowiska po nazwie..."
+            className="self-start !w-[220px] sm:!w-[260px]"
+          />
+          <p className="text-sm text-muted-foreground">
+            Widoczne: {filteredSites.length}/{sites.length}
+          </p>
+        </div>
+      </div>
+
+      <div className="w-full border rounded-lg">
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead>Nazwa</TableHead>
-              <TableHead>Szerokość</TableHead>
-              <TableHead>Długość</TableHead>
+              <TableHead className="w-[40%]">Nazwa</TableHead>
+              <TableHead className="w-[25%] text-right">Szerokość geograficzna</TableHead>
+              <TableHead className="w-[25%] text-right">Długość geograficzna</TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sites.map(s => (
+            {filteredSites.map(s => (
               <TableRow
                 key={s.id}
                 ref={el => { rowRefs.current[s.id] = el; }}
                 className={`cursor-pointer transition-colors ${selectedSiteId === s.id ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-muted/50'}`}
                 onClick={() => handleRowClick(s.id)}
               >
-                <TableCell className="font-medium">{s.name}</TableCell>
-                <TableCell>{s.latitude.toFixed(4)}</TableCell>
-                <TableCell>{s.longitude.toFixed(4)}</TableCell>
+                <TableCell className="font-medium truncate" title={s.name}>{s.name}</TableCell>
+                <TableCell className="text-right font-mono">{s.latitude.toFixed(4)}</TableCell>
+                <TableCell className="text-right font-mono">{s.longitude.toFixed(4)}</TableCell>
                 <TableCell><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openEdit(s); }}><Pencil className="h-4 w-4" /></Button></TableCell>
               </TableRow>
             ))}
@@ -112,9 +135,15 @@ const LandingSitesPage: React.FC = () => {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>{editing ? 'Edytuj lądowisko' : 'Nowe lądowisko'}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edytuj lądowisko' : 'Utwórz lądowisko'}</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input placeholder="Nazwa" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+            <div className="space-y-1">
+              <label htmlFor="landing-site-name" className="text-sm font-medium text-foreground">Nazwa</label>
+              <Input id="landing-site-name" placeholder="Nazwa" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <label className="block text-sm font-medium text-foreground">Lokalizacja na mapie</label>
             <LeafletMap
               center={[form.latitude, form.longitude]}
               zoom={10}
@@ -123,9 +152,36 @@ const LandingSitesPage: React.FC = () => {
               className="h-[200px]"
             />
             <p className="text-xs text-muted-foreground">Kliknij na mapę aby wybrać lokalizację</p>
-            <div className="grid grid-cols-2 gap-2">
-              <Input type="number" step="any" placeholder="Szerokość" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: Number(e.target.value) }))} required />
-              <Input type="number" step="any" placeholder="Długość" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: Number(e.target.value) }))} required />
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Współrzędne</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label htmlFor="landing-site-latitude" className="text-sm text-foreground">Szerokość</label>
+                  <Input
+                    id="landing-site-latitude"
+                    type="number"
+                    step="any"
+                    placeholder="Szerokość"
+                    aria-label="Szerokość geograficzna"
+                    value={form.latitude}
+                    onChange={e => setForm(f => ({ ...f, latitude: Number(e.target.value) }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="landing-site-longitude" className="text-sm text-foreground">Długość</label>
+                  <Input
+                    id="landing-site-longitude"
+                    type="number"
+                    step="any"
+                    placeholder="Długość"
+                    aria-label="Długość geograficzna"
+                    value={form.longitude}
+                    onChange={e => setForm(f => ({ ...f, longitude: Number(e.target.value) }))}
+                    required
+                  />
+                </div>
+              </div>
             </div>
             <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
           </form>

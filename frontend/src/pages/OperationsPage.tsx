@@ -61,7 +61,7 @@ const activityValueAliases: Record<string, ActivityValue> = {
   zdjecia: 'zdjecia',
   zdjęcia: 'zdjecia',
   patrolowanie: 'patrolowanie',
-  survey: 'survey',
+  survey: 'ogledziny_wizualne',
 };
 
 const normalizeActivityValue = (value: string): ActivityValue | null => {
@@ -342,7 +342,7 @@ const OperationsPage: React.FC = () => {
               <TableHead>Nr zlecenia/projektu</TableHead>
               <TableHead>Opis</TableHead>
               <TableHead>Czynnosci</TableHead>
-              <TableHead>Km</TableHead>
+              <TableHead>Dystans (km)</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24" />
             </TableRow>
@@ -377,11 +377,19 @@ const OperationsPage: React.FC = () => {
 
       <Dialog open={open} onOpenChange={handleFormDialogChange}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing ? 'Edytuj operacje' : 'Nowa operacja'}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edytuj operację lotniczą' : 'Utwórz operację lotniczą'}</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <Input maxLength={30} placeholder="Nr zlecenia/projektu" value={form.projectCode} onChange={(e) => setForm((f) => ({ ...f, projectCode: e.target.value }))} required />
+            <div className="space-y-1">
+              <label htmlFor="project-code" className="text-sm font-medium text-foreground">Nr zlecenia/projektu</label>
+              <Input id="project-code" maxLength={30} placeholder="Nr zlecenia/projektu" value={form.projectCode} onChange={(e) => setForm((f) => ({ ...f, projectCode: e.target.value }))} required />
+            </div>
             <p className="text-right text-xs text-muted-foreground">{form.projectCode.length}/30</p>
-            <Textarea maxLength={100} placeholder="Opis skrocony" value={form.shortDescription} onChange={(e) => setForm((f) => ({ ...f, shortDescription: e.target.value }))} required />
+            <div className="space-y-1">
+              <label htmlFor="short-description" className="text-sm font-medium text-foreground">Opis skrócony</label>
+              <Textarea id="short-description" maxLength={100} placeholder="Opis skrocony" value={form.shortDescription} onChange={(e) => setForm((f) => ({ ...f, shortDescription: e.target.value }))} required />
+            </div>
             <p className="text-right text-xs text-muted-foreground">{form.shortDescription.length}/100</p>
 
             <div>
@@ -402,26 +410,48 @@ const OperationsPage: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Input type="date" value={form.proposedDateFrom} onChange={(e) => setForm((f) => ({ ...f, proposedDateFrom: e.target.value }))} />
-              <Input type="date" value={form.proposedDateTo} onChange={(e) => setForm((f) => ({ ...f, proposedDateTo: e.target.value }))} />
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Proponowane daty</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label htmlFor="proposed-date-from" className="text-sm text-foreground">Najwcześniej</label>
+                  <Input id="proposed-date-from" aria-label="Proponowana data najwcześniej" type="date" value={form.proposedDateFrom} onChange={(e) => setForm((f) => ({ ...f, proposedDateFrom: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="proposed-date-to" className="text-sm text-foreground">Najpóźniej</label>
+                  <Input id="proposed-date-to" aria-label="Proponowana data najpóźniej" type="date" value={form.proposedDateTo} onChange={(e) => setForm((f) => ({ ...f, proposedDateTo: e.target.value }))} />
+                </div>
+              </div>
             </div>
             {hasProposedDateRangeError && (
               <p className="text-xs text-destructive">Proponowana data od nie moze byc pozniej niz data do.</p>
             )}
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="date"
-                value={form.plannedDateFrom}
-                onChange={(e) => setForm((f) => ({ ...f, plannedDateFrom: e.target.value }))}
-                disabled={isPlanner}
-              />
-              <Input
-                type="date"
-                value={form.plannedDateTo}
-                onChange={(e) => setForm((f) => ({ ...f, plannedDateTo: e.target.value }))}
-                disabled={isPlanner}
-              />
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Planowane daty</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label htmlFor="planned-date-from" className="text-sm text-foreground">Najwcześniej</label>
+                  <Input
+                    id="planned-date-from"
+                    aria-label="Planowana data najwcześniej"
+                    type="date"
+                    value={form.plannedDateFrom}
+                    onChange={(e) => setForm((f) => ({ ...f, plannedDateFrom: e.target.value }))}
+                    disabled={isPlanner}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="planned-date-to" className="text-sm text-foreground">Najpóźniej</label>
+                  <Input
+                    id="planned-date-to"
+                    aria-label="Planowana data najpóźniej"
+                    type="date"
+                    value={form.plannedDateTo}
+                    onChange={(e) => setForm((f) => ({ ...f, plannedDateTo: e.target.value }))}
+                    disabled={isPlanner}
+                  />
+                </div>
+              </div>
             </div>
             {isPlanner && (
               <p className="text-xs text-muted-foreground">Planista nie moze edytowac planowanych dat i uwag po realizacji.</p>
@@ -429,28 +459,42 @@ const OperationsPage: React.FC = () => {
             {hasPlannedDateRangeError && (
               <p className="text-xs text-destructive">Planowana data od nie moze byc pozniej niz data do.</p>
             )}
-            <Textarea maxLength={500} placeholder="Dodatkowe informacje" value={form.extraInfo} onChange={(e) => setForm((f) => ({ ...f, extraInfo: e.target.value }))} />
+            <div className="space-y-1">
+              <label htmlFor="extra-info" className="text-sm font-medium text-foreground">Dodatkowe informacje</label>
+              <Textarea id="extra-info" maxLength={500} placeholder="Dodatkowe informacje" value={form.extraInfo} onChange={(e) => setForm((f) => ({ ...f, extraInfo: e.target.value }))} />
+            </div>
             <p className="text-right text-xs text-muted-foreground">{form.extraInfo.length}/500</p>
-            <Input placeholder="Osoby kontaktowe (emaile po przecinku)" value={form.contactsRaw} onChange={(e) => setForm((f) => ({ ...f, contactsRaw: e.target.value }))} />
+            <div className="space-y-1">
+              <label htmlFor="contacts" className="text-sm font-medium text-foreground">Osoby kontaktowe (emaile po przecinku)</label>
+              <Input id="contacts" placeholder="Osoby kontaktowe (emaile po przecinku)" value={form.contactsRaw} onChange={(e) => setForm((f) => ({ ...f, contactsRaw: e.target.value }))} />
+            </div>
             {invalidContacts.length > 0 && (
               <p className="text-xs text-destructive">Niepoprawne adresy: {invalidContacts.join(', ')}</p>
             )}
-            <Textarea
-              maxLength={500}
-              placeholder="Uwagi po realizacji"
-              value={form.postRealizationNotes}
-              onChange={(e) => setForm((f) => ({ ...f, postRealizationNotes: e.target.value }))}
-              disabled={isPlanner}
-            />
+            <div className="space-y-1">
+              <label htmlFor="post-realization-notes" className="text-sm font-medium text-foreground">Uwagi po realizacji</label>
+              <Textarea
+                id="post-realization-notes"
+                maxLength={500}
+                placeholder="Uwagi po realizacji"
+                value={form.postRealizationNotes}
+                onChange={(e) => setForm((f) => ({ ...f, postRealizationNotes: e.target.value }))}
+                disabled={isPlanner}
+              />
+            </div>
             <p className="text-right text-xs text-muted-foreground">{form.postRealizationNotes.length}/500</p>
             {editing && (
               <>
-                <Textarea
-                  maxLength={500}
-                  placeholder="Komentarz (zostanie dodany jako nowy wpis)"
-                  value={form.comment}
-                  onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
-                />
+                <div className="space-y-1">
+                  <label htmlFor="operation-comment" className="text-sm font-medium text-foreground">Komentarz (zostanie dodany jako nowy wpis)</label>
+                  <Textarea
+                    id="operation-comment"
+                    maxLength={500}
+                    placeholder="Komentarz (zostanie dodany jako nowy wpis)"
+                    value={form.comment}
+                    onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
+                  />
+                </div>
                 <p className="text-right text-xs text-muted-foreground">{form.comment.length}/500</p>
               </>
             )}
