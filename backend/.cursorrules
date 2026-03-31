@@ -1,3 +1,5 @@
+# Tech stack
+
 Tech stack requirements:
 - Python 3.12 only
 - FastAPI for the web framework
@@ -10,3 +12,19 @@ Tech stack requirements:
 - httpx to handle requests to external APIs
 - Use async when appropriate (AsyncEngine, AsyncSession, async endpoints)
 - If there is more modern Python libraries as alternatives, suggest it
+
+
+# Application Logging Rules
+
+When writing backend code, follow these logging rules:
+
+1. Use structured logs: instead of plain strings, emit logs as JSON or dicts (e.g., using `structlog` or the standard `logging` module with proper formatting).
+2. Log levels (Severity):
+   - DEBUG: detailed function input/output, SQL queries.
+   - INFO: key business events (e.g., "User X created an order").
+   - WARNING: unexpected but non-critical situations (e.g., connection retry).
+   - ERROR: exceptions with full traceback and context (user ID, transaction ID).
+3. Context is mandatory: every error log MUST include variable values that led to the error.
+4. Input/output logging: every API endpoint or key business function should log start and end of the operation along with duration (latency).
+5. Data masking: never log passwords, bearer tokens, or full payment card data.
+6. Request/response logging: log request method/path, status code, duration, and correlation/request ID (do not log sensitive payloads).
