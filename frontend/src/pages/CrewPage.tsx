@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchCrew, createCrewMember, updateCrewMember } from '@/api/api';
 import type { CrewMember, CrewRole } from '@/types';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Eye, AlertTriangle, ArrowUpDown } from 'lucide-react';
 
 const CrewPage: React.FC = () => {
   const qc = useQueryClient();
@@ -20,6 +20,8 @@ const CrewPage: React.FC = () => {
   const [editing, setEditing] = useState<CrewMember | null>(null);
   const [previewing, setPreviewing] = useState<CrewMember | null>(null);
   const [form, setForm] = useState({ email: '', name: '', role: 'PILOT' as CrewRole, licenseExpiry: '', weight: 0 });
+  const [roleFilter, setRoleFilter] = useState<'ALL' | CrewRole>('ALL');
+  const [roleSortDirection, setRoleSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const createMut = useMutation({
     mutationFn: (d: Omit<CrewMember, 'id'>) => createCrewMember(d),
@@ -53,6 +55,17 @@ const CrewPage: React.FC = () => {
     return target < today;
   };
   const getValidityLabel = (date?: string | null) => (isExpired(date) ? 'Nieważna' : 'Ważna');
+  const roleLabels: Record<CrewRole, string> = { PILOT: 'Pilot', OBSERVER: 'Obserwator', CREW: 'Członek załogi' };
+  const filteredAndSortedCrew = useMemo(() => {
+    const direction = roleSortDirection === 'asc' ? 1 : -1;
+    return crew
+      .filter(member => roleFilter === 'ALL' || member.role === roleFilter)
+      .sort((a, b) => {
+      const byRole = roleLabels[a.role].localeCompare(roleLabels[b.role], 'pl') * direction;
+      if (byRole !== 0) return byRole;
+      return a.name.localeCompare(b.name, 'pl');
+    });
+  }, [crew, roleFilter, roleSortDirection]);
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
@@ -60,7 +73,20 @@ const CrewPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Załoga</h1>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
+        <div className="flex items-center gap-2">
+          <Select value={roleFilter} onValueChange={v => setRoleFilter(v as 'ALL' | CrewRole)}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Filtruj po roli" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Wszystkie role</SelectItem>
+              <SelectItem value="PILOT">Pilot</SelectItem>
+              <SelectItem value="OBSERVER">Obserwator</SelectItem>
+              <SelectItem value="CREW">Członek załogi</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
+        </div>
       </div>
       <div className="border rounded-lg">
         <Table>
@@ -68,7 +94,16 @@ const CrewPage: React.FC = () => {
             <TableRow>
               <TableHead>Imię i nazwisko</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Rola</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 hover:text-foreground"
+                  onClick={() => setRoleSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+                >
+                  Rola
+                  <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </TableHead>
               <TableHead>Licencja ważna do</TableHead>
               <TableHead>Podgląd uprawnień</TableHead>
               <TableHead>Waga (kg)</TableHead>
@@ -76,7 +111,7 @@ const CrewPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {crew.map(c => (
+            {filteredAndSortedCrew.map(c => (
               <TableRow key={c.id}>
                 <TableCell className="font-medium">{c.name}</TableCell>
                 <TableCell>{c.email}</TableCell>
