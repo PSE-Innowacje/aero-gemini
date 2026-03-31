@@ -75,6 +75,34 @@ docker compose restart frontend
 docker compose down
 ```
 
+## Frontend readiness checks
+
+After starting the devcontainer and compose services, verify:
+
+```bash
+cd /workspace/infra
+docker compose ps
+```
+
+Expected:
+
+- `backend` service is `Up` on `0.0.0.0:8000->8000`
+- `frontend` service is `Up` on `0.0.0.0:8080->8080`
+
+Endpoint checks from host:
+
+```bash
+curl -I http://localhost:8080
+curl -I http://localhost:8000/docs
+```
+
+Frontend test run:
+
+```bash
+cd /workspace/infra
+docker compose exec frontend npm run test
+```
+
 ## Troubleshooting
 
 - Frontend does not open on `8080`:

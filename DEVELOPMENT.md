@@ -48,3 +48,34 @@ npm run build
 For full troubleshooting and operational notes, see:
 
 - `backend/docs/cursor-compose-dev.md`
+- `docs/frontend-test-checklist.md`
+
+## Quick Verification (after opening backend devcontainer)
+
+Use these checks to confirm the environment is ready for frontend work:
+
+```bash
+cd /workspace/infra
+docker compose ps
+```
+
+Expected: both `backend` and `frontend` are `Up` and ports are mapped:
+
+- `8000:8000` for backend
+- `8080:8080` for frontend
+
+Health checks from host machine:
+
+```bash
+curl -I http://localhost:8080
+curl -I http://localhost:8000/docs
+```
+
+Expected HTTP status for both endpoints: `200`.
+
+Run frontend tests inside the frontend container:
+
+```bash
+cd /workspace/infra
+docker compose exec frontend npm run test
+```
