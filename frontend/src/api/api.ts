@@ -271,7 +271,27 @@ export const updateOperation = async (id: string, data: Partial<PlannedOperation
 
 // Flight Orders
 export const fetchFlightOrders = async (): Promise<FlightOrder[]> => (await request<any[]>('/flight-orders')).map(toUiOrder);
+
+export const estimateFlightOrderDistanceKm = async (data: {
+  startSiteId: string;
+  endSiteId: string;
+  operationIds: string[];
+}): Promise<number> => {
+  const body = {
+    start_site_id: Number(data.startSiteId),
+    end_site_id: Number(data.endSiteId),
+    planned_operation_ids: data.operationIds.length ? data.operationIds.map(Number) : [],
+  };
+  const res = await request<{ distance_km: number }>('/flight-orders/estimate-distance', 'POST', body);
+  return res.distance_km;
+};
+
 export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<FlightOrder> => {
+  const estimated_distance = await estimateFlightOrderDistanceKm({
+    startSiteId: data.startSiteId,
+    endSiteId: data.endSiteId,
+    operationIds: data.operationIds,
+  });
   const payload = {
     planned_start: data.startTime || null,
     planned_end: data.startTime || null,
@@ -281,7 +301,7 @@ export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<
     start_site_id: Number(data.startSiteId),
     end_site_id: Number(data.endSiteId),
     planned_operation_ids: data.operationIds.map(Number),
-    estimated_distance: 100,
+    estimated_distance,
   };
   return toUiOrder(await request('/flight-orders', 'POST', payload));
 };

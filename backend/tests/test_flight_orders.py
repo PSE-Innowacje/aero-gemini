@@ -2,6 +2,8 @@
 
 from datetime import date, timedelta
 
+from geopy.distance import geodesic
+
 from aero.models.crew_member import CrewMember
 from aero.models.helicopter import Helicopter
 
@@ -87,3 +89,19 @@ def test_reject_when_estimated_distance_exceeds_range(
     response = _create_flight_order(client, planner_token, authz, operational_entities, estimated_distance=75.0)
     assert response.status_code == 400
     assert response.json()["detail"] == "Estimated distance exceeds range"
+
+
+def test_estimate_flight_order_distance_matches_geodesic(client, planner_token, authz, operational_entities) -> None:
+    ids = operational_entities
+    expected = round(geodesic((52.1, 21.0), (52.2, 21.1)).kilometers, 2)
+    response = client.post(
+        "/api/flight-orders/estimate-distance",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["distance_km"] == expected

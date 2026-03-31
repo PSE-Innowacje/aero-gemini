@@ -1,6 +1,10 @@
 from datetime import date
+from itertools import pairwise
+from math import isfinite
+from typing import Any, cast
 
 from fastapi import HTTPException, status
+from geopy.distance import geodesic
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,6 +13,7 @@ from aero.core.logging import log_duration
 from aero.models.crew_member import CrewMember
 from aero.models.flight_order import FlightOrder
 from aero.models.helicopter import Helicopter
+from aero.models.landing_site import LandingSite
 from aero.models.planned_operation import PlannedOperation
 
 
@@ -140,6 +145,72 @@ def validate_flight_order_constraints(
 
     validation_logger.bind(crew_count=len(crew), crew_weight=crew_weight).debug("validation_result")
     return helicopter, pilot, crew, crew_weight
+
+
+def _lonlat_points_from_route_geometry(route_geometry: dict[str, Any] | None) -> list[tuple[float, float]]:
+    if not route_geometry or route_geometry.get("type") != "LineString":
+        return []
+    coords = route_geometry.get("coordinates") or []
+    out: list[tuple[float, float]] = []
+    for pair in coords:
+        if not isinstance(pair, (list, tuple)) or len(pair) < 2:
+            continue
+        lon, lat = float(pair[0]), float(pair[1])
+        if isfinite(lon) and isfinite(lat):
+            out.append((lon, lat))
+    return out
+
+
+def _dedupe_consecutive_lonlat(coords: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    out: list[tuple[float, float]] = []
+    for lon, lat in coords:
+        if not out or out[-1] != (lon, lat):
+            out.append((lon, lat))
+    return out
+
+
+def _polyline_length_km(lonlat: list[tuple[float, float]]) -> float:
+    if len(lonlat) < 2:
+        return 0.0
+    lat_lon = [(lat, lon) for lon, lat in lonlat]
+    total = sum(geodesic(start, end).kilometers for start, end in pairwise(lat_lon))
+    return round(total, 2)
+
+
+def build_flight_order_path_lon_lat(
+    start_lon: float,
+    start_lat: float,
+    end_lon: float,
+    end_lat: float,
+    operations_in_order: list[PlannedOperation],
+) -> list[tuple[float, float]]:
+    positions: list[tuple[float, float]] = [(start_lon, start_lat)]
+    for op in operations_in_order:
+        positions.extend(_lonlat_points_from_route_geometry(op.route_geometry))
+    positions.append((end_lon, end_lat))
+    return _dedupe_consecutive_lonlat(positions)
+
+
+def estimate_flight_order_distance_km(
+    db: Session,
+    *,
+    start_site_id: int,
+    end_site_id: int,
+    planned_operation_ids: list[int] | None,
+) -> float:
+    start = db.scalar(select(LandingSite).where(LandingSite.id == start_site_id))
+    end = db.scalar(select(LandingSite).where(LandingSite.id == end_site_id))
+    if start is None or end is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Landing site not found")
+    operations = cast(list[PlannedOperation], get_planned_operations(db, planned_operation_ids or []))
+    path = build_flight_order_path_lon_lat(
+        start.longitude,
+        start.latitude,
+        end.longitude,
+        end.latitude,
+        operations,
+    )
+    return _polyline_length_km(path)
 
 
 @log_duration(

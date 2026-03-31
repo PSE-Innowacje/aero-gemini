@@ -1,6 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchFlightOrders, createFlightOrder, updateFlightOrder, fetchHelicopters, fetchCrew, fetchLandingSites, fetchOperations } from '@/api/api';
+import {
+  fetchFlightOrders,
+  createFlightOrder,
+  updateFlightOrder,
+  fetchHelicopters,
+  fetchCrew,
+  fetchLandingSites,
+  fetchOperations,
+  estimateFlightOrderDistanceKm,
+} from '@/api/api';
 import type { FlightOrder, FlightOrderStatus } from '@/types';
 import { flightOrderStatusLabels } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -86,6 +95,22 @@ const FlightOrdersPage: React.FC = () => {
     const ids = [form.pilotId, ...form.crewIds];
     return crew.filter(c => ids.includes(c.id) && new Date(c.licenseExpiry) < new Date());
   }, [form.pilotId, form.crewIds, crew]);
+
+  const canEstimateDistance = open && !editing && !!form.startSiteId && !!form.endSiteId;
+  const {
+    data: estimatedDistanceKm,
+    isFetching: isEstimatedDistanceLoading,
+    isError: isEstimatedDistanceError,
+  } = useQuery({
+    queryKey: ['flightOrderDistanceEstimate', form.startSiteId, form.endSiteId, form.operationIds],
+    queryFn: () =>
+      estimateFlightOrderDistanceKm({
+        startSiteId: form.startSiteId,
+        endSiteId: form.endSiteId,
+        operationIds: form.operationIds,
+      }),
+    enabled: canEstimateDistance,
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -257,6 +282,18 @@ const FlightOrdersPage: React.FC = () => {
             <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
               <p><span className="text-muted-foreground">Waga załogi:</span> <strong>{crewWeight} kg</strong></p>
               {helicopter && <p><span className="text-muted-foreground">Maks. zasięg:</span> {helicopter.maxRange} km</p>}
+              {!editing && (
+                <p>
+                  <span className="text-muted-foreground">Szacowany dystans:</span>{' '}
+                  {canEstimateDistance
+                    ? isEstimatedDistanceLoading
+                      ? 'Obliczanie...'
+                      : isEstimatedDistanceError
+                        ? 'Nie udało się obliczyć'
+                        : `${estimatedDistanceKm ?? 0} km`
+                    : 'Wybierz start i cel'}
+                </p>
+              )}
             </div>
 
             {overweight && (

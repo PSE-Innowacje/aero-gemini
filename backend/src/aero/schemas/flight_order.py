@@ -46,3 +46,13 @@ class FlightOrderRead(ORMModel):
     crew_weight: int
     estimated_distance: float
     status: WorkflowStatus
+
+
+class FlightOrderDistanceEstimateRequest(ORMModel):
+    start_site_id: int
+    end_site_id: int
+    planned_operation_ids: list[int] | None = None
+
+
+class FlightOrderDistanceEstimateResponse(ORMModel):
+    distance_km: float

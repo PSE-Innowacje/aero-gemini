@@ -9,9 +9,16 @@ from aero.core.database import get_db
 from aero.models.enums import UserRole
 from aero.models.flight_order import FlightOrder
 from aero.repositories.base import BaseRepository
-from aero.schemas.flight_order import FlightOrderCreate, FlightOrderRead, FlightOrderUpdate
+from aero.schemas.flight_order import (
+    FlightOrderCreate,
+    FlightOrderDistanceEstimateRequest,
+    FlightOrderDistanceEstimateResponse,
+    FlightOrderRead,
+    FlightOrderUpdate,
+)
 from aero.services.flight_orders import (
     assign_relationships,
+    estimate_flight_order_distance_km,
     get_planned_operations,
     validate_flight_order_constraints,
 )
@@ -38,6 +45,21 @@ def _to_read(order: FlightOrder) -> FlightOrderRead:
             "status": order.status,
         }
     )
+
+
+@router.post("/estimate-distance", response_model=FlightOrderDistanceEstimateResponse)
+def estimate_flight_order_route_distance(
+    payload: FlightOrderDistanceEstimateRequest,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR, UserRole.PILOT)),
+) -> FlightOrderDistanceEstimateResponse:
+    distance_km = estimate_flight_order_distance_km(
+        db,
+        start_site_id=payload.start_site_id,
+        end_site_id=payload.end_site_id,
+        planned_operation_ids=payload.planned_operation_ids,
+    )
+    return FlightOrderDistanceEstimateResponse(distance_km=distance_km)
 
 
 @router.post("", response_model=FlightOrderRead)
