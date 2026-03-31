@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from aero.api.deps import require_roles
@@ -11,6 +12,11 @@ from aero.schemas.helicopter import HelicopterCreate, HelicopterRead, Helicopter
 router = APIRouter()
 
 
+def _raise_duplicate_registration_conflict(db: Session) -> None:
+    db.rollback()
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Registration number already exists")
+
+
 @router.post("", response_model=HelicopterRead)
 def create_helicopter(
     payload: HelicopterCreate,
@@ -18,7 +24,10 @@ def create_helicopter(
     _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
 ) -> HelicopterRead:
     repo = BaseRepository(db, Helicopter)
-    return HelicopterRead.model_validate(repo.create(payload.model_dump()))
+    try:
+        return HelicopterRead.model_validate(repo.create(payload.model_dump()))
+    except IntegrityError:
+        _raise_duplicate_registration_conflict(db)
 
 
 @router.get("", response_model=list[HelicopterRead])
@@ -45,4 +54,24 @@ def update_helicopter(
     model = repo.get(helicopter_id)
     if not model:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Helicopter not found")
-    return HelicopterRead.model_validate(repo.update(model, payload.model_dump(exclude_unset=True)))
+    try:
+        return HelicopterRead.model_validate(repo.update(model, payload.model_dump(exclude_unset=True)))
+    except IntegrityError:
+        _raise_duplicate_registration_conflict(db)
+
+
+@router.put("/{helicopter_id}", response_model=HelicopterRead)
+def replace_helicopter(
+    helicopter_id: int,
+    payload: HelicopterCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
+) -> HelicopterRead:
+    repo = BaseRepository(db, Helicopter)
+    model = repo.get(helicopter_id)
+    if not model:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Helicopter not found")
+    try:
+        return HelicopterRead.model_validate(repo.update(model, payload.model_dump()))
+    except IntegrityError:
+        _raise_duplicate_registration_conflict(db)
