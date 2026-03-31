@@ -1,0 +1,12 @@
+Tech stack requirements:
+- Python 3.12 only
+- FastAPI for the web framework
+- Pydantic v2 (modern style, no v1 imports)
+- SQLAlchemy 2.0+, use the 2.0 style ORM API
+- fastkml to handle KML files
+- loguru for logging
+- uv to manage and build project and dependencies
+- pytest for automated tests
+- httpx to handle requests to external APIs
+- Use async when appropriate (AsyncEngine, AsyncSession, async endpoints)
+- If there is more modern Python libraries as alternatives, suggest it
