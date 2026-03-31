@@ -1,7 +1,9 @@
+from collections.abc import Iterable
 from datetime import date
-import math
-import xml.etree.ElementTree as ET
+from itertools import pairwise
+from pathlib import Path
 
+from fastkml import kml
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -9,7 +11,7 @@ from aero.models.audit import PlannedOperationAudit
 from aero.models.enums import UserRole, WorkflowStatus
 from aero.models.planned_operation import PlannedOperation
 from aero.models.user import User
-
+from geopy.distance import geodesic
 
 ALLOWED_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
     WorkflowStatus.DRAFT: {WorkflowStatus.SUBMITTED, WorkflowStatus.APPROVED},
@@ -19,27 +21,54 @@ ALLOWED_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
 
 
 def _distance_km(coords: list[tuple[float, float]]) -> float:
-    total = 0.0
-    for i in range(1, len(coords)):
-        x1, y1 = coords[i - 1]
-        x2, y2 = coords[i]
-        total += math.dist((x1, y1), (x2, y2)) * 111.0
+    total = sum(geodesic(start, end).kilometers for start, end in pairwise(coords))
     return round(total, 2)
+
+
+def _iter_features(node: object) -> Iterable[object]:
+    features = getattr(node, "features", None)
+    if features is None:
+        return
+
+    iterable = features() if callable(features) else features
+    for feature in iterable:
+        yield feature
+        yield from _iter_features(feature)
+
+
+def _iter_geometry_coords(geometry: object) -> Iterable[tuple[float, float]]:
+    if geometry is None:
+        return
+
+    geoms = getattr(geometry, "geoms", None)
+    if geoms is not None:
+        for sub_geometry in geoms:
+            yield from _iter_geometry_coords(sub_geometry)
+        return
+
+    coords = getattr(geometry, "coords", None)
+    if coords is None:
+        return
+
+    for lon, lat, *_ in coords:
+        yield float(lat), float(lon)
 
 
 def parse_kml_distance(path: str | None) -> float:
     if not path:
         return 0.0
     try:
-        root = ET.parse(path).getroot()
+        document = kml.KML.from_string(Path(path).read_bytes())
     except Exception:  # noqa: BLE001
         return 0.0
+
     coords: list[tuple[float, float]] = []
-    for elem in root.iter():
-        if elem.tag.endswith("coordinates") and elem.text:
-            for segment in elem.text.strip().split():
-                lon, lat, *_ = segment.split(",")
-                coords.append((float(lat), float(lon)))
+    for feature in _iter_features(document):
+        geometry = getattr(feature, "geometry", None)
+        if callable(geometry):
+            geometry = geometry()
+        coords.extend(_iter_geometry_coords(geometry))
+
     return _distance_km(coords)
 
 
