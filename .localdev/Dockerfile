@@ -13,7 +13,7 @@ ENV PATH="${UV_PROJECT_ENVIRONMENT}/bin:$PATH"
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
     build-essential \
-    locales \
+    locales && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -24,8 +24,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.6.7 /uv /uvx /bin/
 # Set working dir
 WORKDIR /app
 
-# Copy project configuration so dependencies are known
-COPY pyproject.toml .
+# Copy project configuration from backend directory so dependencies are known
+COPY backend/pyproject.toml .
 
 # Generate uv lock
 RUN uv lock
@@ -34,7 +34,7 @@ RUN uv lock
 RUN uv sync --no-install-project --no-dev
 
 # Now include, build and install project as package
-COPY src src
+COPY backend/src src
 RUN uv sync --no-dev --no-editable
 
 # ---- Production Stage ----

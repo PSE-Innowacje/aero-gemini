@@ -15,7 +15,7 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "python-dotenv",
-    "requests"
+    "requests",
     "sqlalchemy[asyncio]",
     "uvicorn[standard]"
 ]
@@ -55,7 +55,6 @@ dev-dependencies = [
     "mypy",
     "debugpy>=1.8.13",
     "pytest>=8.3.5",
-    "pytest-bdd>=8.1.0",
     "pytest-cov>=6.0",
     "httpx>=0.28.1",
     "pytest-html>=4.1.1",
