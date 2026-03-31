@@ -8,12 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
+import { queryKeys } from '@/lib/queryKeys';
+import { buildMutationOptions } from '@/lib/reactQuery/mutationOptions';
 
 const CrewPage: React.FC = () => {
   const qc = useQueryClient();
-  const { data: crew = [], isLoading } = useQuery({ queryKey: ['crew'], queryFn: fetchCrew });
+  const { data: crew = [], isLoading } = useQuery({ queryKey: queryKeys.crew, queryFn: fetchCrew });
   const [open, setOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [editing, setEditing] = useState<CrewMember | null>(null);
@@ -22,13 +23,23 @@ const CrewPage: React.FC = () => {
 
   const createMut = useMutation({
     mutationFn: (d: Omit<CrewMember, 'id'>) => createCrewMember(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crew'] }); setOpen(false); toast({ title: 'Dodano członka załogi' }); },
-    onError: (error: Error) => { toast({ title: 'Błąd zapisu', description: error.message, variant: 'destructive' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.crew,
+      successTitle: 'Dodano członka załogi',
+      errorTitle: 'Błąd zapisu',
+      onSuccess: () => setOpen(false),
+    }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<CrewMember> & { id: string }) => updateCrewMember(id, d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crew'] }); setOpen(false); toast({ title: 'Zaktualizowano' }); },
-    onError: (error: Error) => { toast({ title: 'Błąd aktualizacji', description: error.message, variant: 'destructive' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.crew,
+      successTitle: 'Zaktualizowano',
+      errorTitle: 'Błąd aktualizacji',
+      onSuccess: () => setOpen(false),
+    }),
   });
 
   const openCreate = () => { setEditing(null); setForm({ email: '', name: '', role: 'PILOT', licenseExpiry: '', weight: 0 }); setOpen(true); };

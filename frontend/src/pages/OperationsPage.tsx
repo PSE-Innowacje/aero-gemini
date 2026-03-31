@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { queryKeys } from '@/lib/queryKeys';
+import { buildMutationOptions } from '@/lib/reactQuery/mutationOptions';
 
 const statusColors: Record<OperationStatus, string> = {
   1: 'bg-gray-100 text-gray-800',
@@ -37,7 +38,7 @@ type OperationForm = {
 const OperationsPage: React.FC = () => {
   const qc = useQueryClient();
   const { user } = useAuthStore();
-  const { data: operations = [], isLoading } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
+  const { data: operations = [], isLoading } = useQuery({ queryKey: queryKeys.operations, queryFn: fetchOperations });
   const [statusFilter, setStatusFilter] = useState<string>('3');
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -54,11 +55,26 @@ const OperationsPage: React.FC = () => {
 
   const createMut = useMutation({
     mutationFn: (d: Omit<PlannedOperation, 'id'>) => createOperation(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['operations'] }); setOpen(false); toast({ title: 'Dodano operację' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.operations,
+      successTitle: 'Dodano operację',
+      errorTitle: 'Błąd zapisu',
+      onSuccess: () => setOpen(false),
+    }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<PlannedOperation> & { id: string }) => updateOperation(id, d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['operations'] }); setOpen(false); setDetailOpen(false); toast({ title: 'Zaktualizowano' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.operations,
+      successTitle: 'Zaktualizowano',
+      errorTitle: 'Błąd aktualizacji',
+      onSuccess: () => {
+        setOpen(false);
+        setDetailOpen(false);
+      },
+    }),
   });
 
   const filtered = statusFilter === 'all' ? operations : operations.filter(o => o.status === Number(statusFilter));

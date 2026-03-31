@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/errors';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -17,8 +18,12 @@ const LoginPage: React.FC = () => {
     try {
       await login(email, password);
       toast({ title: 'Zalogowano pomyślnie' });
-    } catch {
-      toast({ title: 'Błąd logowania', description: 'Nieprawidłowy email lub hasło.', variant: 'destructive' });
+    } catch (error) {
+      toast({
+        title: 'Błąd logowania',
+        description: getErrorMessage(error, 'Nieprawidłowy email lub hasło.'),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }

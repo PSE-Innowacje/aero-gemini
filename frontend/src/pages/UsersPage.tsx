@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchUsers } from '@/api/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { queryKeys } from '@/lib/queryKeys';
 
 const UsersPage: React.FC = () => {
-  const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+  const { data: users = [], isLoading } = useQuery({ queryKey: queryKeys.users, queryFn: fetchUsers });
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (

@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil } from 'lucide-react';
+import { queryKeys } from '@/lib/queryKeys';
+import { buildMutationOptions } from '@/lib/reactQuery/mutationOptions';
 
 const statusColors: Record<string, string> = {
   active: 'bg-green-100 text-green-800',
@@ -18,21 +19,31 @@ const statusColors: Record<string, string> = {
 
 const HelicoptersPage: React.FC = () => {
   const qc = useQueryClient();
-  const { data: helicopters = [], isLoading } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
+  const { data: helicopters = [], isLoading } = useQuery({ queryKey: queryKeys.helicopters, queryFn: fetchHelicopters });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Helicopter | null>(null);
   const [form, setForm] = useState({ registration: '', type: '', status: 'active' as Helicopter['status'], maxRange: 0, maxWeight: 0 });
 
   const createMut = useMutation({
     mutationFn: (d: Omit<Helicopter, 'id'>) => createHelicopter(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['helicopters'] }); setOpen(false); toast({ title: 'Dodano helikopter' }); },
-    onError: (error: Error) => { toast({ title: 'Błąd zapisu', description: error.message, variant: 'destructive' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.helicopters,
+      successTitle: 'Dodano helikopter',
+      errorTitle: 'Błąd zapisu',
+      onSuccess: () => setOpen(false),
+    }),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<Helicopter> & { id: string }) => updateHelicopter(id, d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['helicopters'] }); setOpen(false); toast({ title: 'Zaktualizowano' }); },
-    onError: (error: Error) => { toast({ title: 'Błąd aktualizacji', description: error.message, variant: 'destructive' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.helicopters,
+      successTitle: 'Zaktualizowano',
+      errorTitle: 'Błąd aktualizacji',
+      onSuccess: () => setOpen(false),
+    }),
   });
 
   const openCreate = () => { setEditing(null); setForm({ registration: '', type: '', status: 'active', maxRange: 0, maxWeight: 0 }); setOpen(true); };

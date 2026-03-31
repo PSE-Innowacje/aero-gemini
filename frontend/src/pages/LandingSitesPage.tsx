@@ -7,14 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker } from '@/components/LeafletMap';
+import { queryKeys } from '@/lib/queryKeys';
+import { buildMutationOptions } from '@/lib/reactQuery/mutationOptions';
 
 const LandingSitesPage: React.FC = () => {
   const qc = useQueryClient();
-  const { data: sites = [], isLoading } = useQuery({ queryKey: ['landingSites'], queryFn: fetchLandingSites });
+  const { data: sites = [], isLoading } = useQuery({ queryKey: queryKeys.landingSites, queryFn: fetchLandingSites });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LandingSite | null>(null);
   const [form, setForm] = useState({ name: '', latitude: 50.06, longitude: 19.94, elevation: 0, status: 'active' as LandingSite['status'] });
@@ -23,11 +24,23 @@ const LandingSitesPage: React.FC = () => {
 
   const createMut = useMutation({
     mutationFn: (d: Omit<LandingSite, 'id'>) => createLandingSite(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['landingSites'] }); setOpen(false); toast({ title: 'Dodano lądowisko' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.landingSites,
+      successTitle: 'Dodano lądowisko',
+      errorTitle: 'Błąd zapisu',
+      onSuccess: () => setOpen(false),
+    }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<LandingSite> & { id: string }) => updateLandingSite(id, d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['landingSites'] }); setOpen(false); toast({ title: 'Zaktualizowano' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.landingSites,
+      successTitle: 'Zaktualizowano',
+      errorTitle: 'Błąd aktualizacji',
+      onSuccess: () => setOpen(false),
+    }),
   });
 
   const openCreate = () => { setEditing(null); setForm({ name: '', latitude: 50.06, longitude: 19.94, elevation: 0, status: 'active' }); setOpen(true); };

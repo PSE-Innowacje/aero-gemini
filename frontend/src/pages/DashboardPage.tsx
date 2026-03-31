@@ -6,16 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plane, Users, MapPin, ClipboardList } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
+import { queryKeys } from '@/lib/queryKeys';
 
 const ROUTE_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2'];
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuthStore();
-  const { data: sites = [] } = useQuery({ queryKey: ['landingSites'], queryFn: fetchLandingSites });
-  const { data: helicopters = [] } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
-  const { data: crew = [] } = useQuery({ queryKey: ['crew'], queryFn: fetchCrew });
-  const { data: operations = [] } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
-  const { data: flightOrders = [] } = useQuery({ queryKey: ['flightOrders'], queryFn: fetchFlightOrders });
+  const { data: sites = [] } = useQuery({ queryKey: queryKeys.landingSites, queryFn: fetchLandingSites });
+  const { data: helicopters = [] } = useQuery({ queryKey: queryKeys.helicopters, queryFn: fetchHelicopters });
+  const { data: crew = [] } = useQuery({ queryKey: queryKeys.crew, queryFn: fetchCrew });
+  const { data: operations = [] } = useQuery({ queryKey: queryKeys.operations, queryFn: fetchOperations });
+  const { data: flightOrders = [] } = useQuery({ queryKey: queryKeys.flightOrders, queryFn: fetchFlightOrders });
 
   const [visibleRoutes, setVisibleRoutes] = useState<Record<string, boolean>>({});
 

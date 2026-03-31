@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
+import { queryKeys } from '@/lib/queryKeys';
+import { buildMutationOptions } from '@/lib/reactQuery/mutationOptions';
 
 const statusColors: Record<FlightOrderStatus, string> = {
   1: 'bg-muted text-muted-foreground',
@@ -23,11 +24,11 @@ const statusColors: Record<FlightOrderStatus, string> = {
 
 const FlightOrdersPage: React.FC = () => {
   const qc = useQueryClient();
-  const { data: orders = [], isLoading } = useQuery({ queryKey: ['flightOrders'], queryFn: fetchFlightOrders });
-  const { data: helicopters = [] } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
-  const { data: crew = [] } = useQuery({ queryKey: ['crew'], queryFn: fetchCrew });
-  const { data: sites = [] } = useQuery({ queryKey: ['landingSites'], queryFn: fetchLandingSites });
-  const { data: operations = [] } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
+  const { data: orders = [], isLoading } = useQuery({ queryKey: queryKeys.flightOrders, queryFn: fetchFlightOrders });
+  const { data: helicopters = [] } = useQuery({ queryKey: queryKeys.helicopters, queryFn: fetchHelicopters });
+  const { data: crew = [] } = useQuery({ queryKey: queryKeys.crew, queryFn: fetchCrew });
+  const { data: sites = [] } = useQuery({ queryKey: queryKeys.landingSites, queryFn: fetchLandingSites });
+  const { data: operations = [] } = useQuery({ queryKey: queryKeys.operations, queryFn: fetchOperations });
 
   const [statusFilter, setStatusFilter] = useState<string>('2');
   const [open, setOpen] = useState(false);
@@ -42,11 +43,23 @@ const FlightOrdersPage: React.FC = () => {
 
   const createMut = useMutation({
     mutationFn: (d: Omit<FlightOrder, 'id'>) => createFlightOrder(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['flightOrders'] }); setOpen(false); toast({ title: 'Dodano zlecenie' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.flightOrders,
+      successTitle: 'Dodano zlecenie',
+      errorTitle: 'Błąd zapisu',
+      onSuccess: () => setOpen(false),
+    }),
   });
   const updateMut = useMutation({
     mutationFn: ({ id, ...d }: Partial<FlightOrder> & { id: string }) => updateFlightOrder(id, d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['flightOrders'] }); setOpen(false); toast({ title: 'Zaktualizowano' }); },
+    ...buildMutationOptions({
+      queryClient: qc,
+      invalidateQueryKey: queryKeys.flightOrders,
+      successTitle: 'Zaktualizowano',
+      errorTitle: 'Błąd aktualizacji',
+      onSuccess: () => setOpen(false),
+    }),
   });
 
   const filtered = statusFilter === 'all' ? orders : orders.filter(o => o.status === Number(statusFilter));
