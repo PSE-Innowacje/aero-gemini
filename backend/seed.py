@@ -1,8 +1,36 @@
 import os
 import sys
 from datetime import UTC, date, datetime, time, timedelta
+from pathlib import Path
 
 from sqlalchemy import inspect, select, text
+
+
+def _prepare_database_url(backend_dir: str) -> None:
+    configured_url = os.getenv("AERO_DATABASE_URL", f"sqlite:///{Path(backend_dir, 'aero.db').as_posix()}")
+    if not configured_url.startswith("sqlite:///"):
+        return
+
+    db_path = configured_url[len("sqlite:///") :]
+    if not db_path or db_path == ":memory:":
+        return
+
+    db_file = Path(db_path)
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with open(db_file, "ab"):
+            pass
+    except OSError:
+        fallback_file = db_file.with_suffix(".sqlite")
+        fallback_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(fallback_file, "ab"):
+            pass
+        os.environ["AERO_DATABASE_URL"] = f"sqlite:///{fallback_file.as_posix()}"
+        print(
+            f"Configured database path '{db_file}' is not writable. "
+            f"Using fallback '{fallback_file}' for seeding."
+        )
 
 
 def main() -> None:
@@ -10,6 +38,7 @@ def main() -> None:
     src_path = os.path.join(backend_dir, "src")
     if src_path not in sys.path:
         sys.path.insert(0, src_path)
+    _prepare_database_url(backend_dir)
 
     from aero.core.database import Base, SessionLocal, engine  # noqa: WPS433
     from aero.core.security import hash_password  # noqa: WPS433
@@ -21,6 +50,12 @@ def main() -> None:
     from aero.models.planned_operation import PlannedOperation  # noqa: WPS433
     from aero.models.user import User  # noqa: WPS433
     from aero.services.planned_operations import normalize_route  # noqa: WPS433
+
+    if engine.url.drivername.startswith("sqlite"):
+        db_path = engine.url.database
+        if db_path and db_path != ":memory:":
+            db_file = Path(db_path)
+            db_file.parent.mkdir(parents=True, exist_ok=True)
 
     Base.metadata.create_all(bind=engine)
     inspector = inspect(engine)
