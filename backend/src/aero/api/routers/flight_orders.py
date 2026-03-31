@@ -1,6 +1,6 @@
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from loguru import logger
 from sqlalchemy.orm import Session
 
@@ -14,8 +14,11 @@ from aero.schemas.flight_order import (
     FlightOrderDistanceEstimateRequest,
     FlightOrderDistanceEstimateResponse,
     FlightOrderRead,
+    FlightOrderRoutingRequest,
+    FlightOrderRoutingResponse,
     FlightOrderUpdate,
 )
+from aero.services.flight_order_routing import optimize_flight_order_routing
 from aero.services.flight_orders import (
     assign_relationships,
     estimate_flight_order_distance_km,
@@ -60,6 +63,65 @@ def estimate_flight_order_route_distance(
         planned_operation_ids=payload.planned_operation_ids,
     )
     return FlightOrderDistanceEstimateResponse(distance_km=distance_km)
+
+
+@router.post(
+    "/optimize-route",
+    response_model=FlightOrderRoutingResponse,
+    summary="Optimize route for planned operations",
+    description=(
+        "Calculates optimized order and direction for planned operations between "
+        "start and end landing sites, and returns total route distance."
+    ),
+    responses={
+        200: {
+            "description": "Optimized route details",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "ordered_operations": [
+                            {
+                                "planned_operation_id": 101,
+                                "direction": "forward",
+                                "entry_point": {"longitude": 21.01, "latitude": 52.11},
+                                "exit_point": {"longitude": 21.06, "latitude": 52.14},
+                                "traversal_distance_km": 4.62,
+                            },
+                            {
+                                "planned_operation_id": 102,
+                                "direction": "reverse",
+                                "entry_point": {"longitude": 21.12, "latitude": 52.19},
+                                "exit_point": {"longitude": 21.08, "latitude": 52.16},
+                                "traversal_distance_km": 3.77,
+                            },
+                        ],
+                        "total_distance_km": 23.45,
+                    }
+                }
+            },
+        }
+    },
+)
+def optimize_flight_order_route(
+    payload: FlightOrderRoutingRequest = Body(
+        examples=[
+            {
+                "start_site_id": 1,
+                "end_site_id": 2,
+                "planned_operation_ids": [101, 102, 103],
+            }
+        ]
+    ),
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR, UserRole.PILOT)),
+) -> FlightOrderRoutingResponse:
+    result = optimize_flight_order_routing(
+        db,
+        start_site_id=payload.start_site_id,
+        end_site_id=payload.end_site_id,
+        planned_operation_ids=payload.planned_operation_ids,
+    )
+    return FlightOrderRoutingResponse.model_validate(result)
 
 
 @router.post("", response_model=FlightOrderRead)

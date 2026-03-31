@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from aero.models.enums import WorkflowStatus
 from aero.schemas.common import ORMModel
@@ -56,3 +57,27 @@ class FlightOrderDistanceEstimateRequest(ORMModel):
 
 class FlightOrderDistanceEstimateResponse(ORMModel):
     distance_km: float
+
+
+class FlightOrderRoutingRequest(ORMModel):
+    start_site_id: int
+    end_site_id: int
+    planned_operation_ids: list[int]
+
+
+class FlightOrderRoutingPoint(ORMModel):
+    longitude: float
+    latitude: float
+
+
+class FlightOrderRoutingOperation(ORMModel):
+    planned_operation_id: int
+    direction: Literal["forward", "reverse"]
+    entry_point: FlightOrderRoutingPoint
+    exit_point: FlightOrderRoutingPoint
+    traversal_distance_km: float
+
+
+class FlightOrderRoutingResponse(ORMModel):
+    ordered_operations: list[FlightOrderRoutingOperation]
+    total_distance_km: float

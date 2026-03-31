@@ -6,6 +6,7 @@ from geopy.distance import geodesic
 
 from aero.models.crew_member import CrewMember
 from aero.models.helicopter import Helicopter
+from aero.models.planned_operation import PlannedOperation
 
 
 def _create_flight_order(client, token: str, authz, ids: dict[str, int], estimated_distance: float = 100.0):
@@ -22,6 +23,23 @@ def _create_flight_order(client, token: str, authz, ids: dict[str, int], estimat
             "estimated_distance": estimated_distance,
         },
     )
+
+
+def _create_planned_operation(client, token: str, authz, project_code: str, coordinates: list[list[float]]) -> int:
+    response = client.post(
+        "/api/planned-operations",
+        headers=authz(token),
+        json={
+            "project_code": project_code,
+            "short_description": f"Operation {project_code}",
+            "route_geometry": {
+                "type": "LineString",
+                "coordinates": coordinates,
+            },
+        },
+    )
+    assert response.status_code == 200
+    return response.json()["id"]
 
 
 def test_create_flight_order_computes_crew_weight(client, planner_token, authz, operational_entities) -> None:
@@ -105,3 +123,158 @@ def test_estimate_flight_order_distance_matches_geodesic(client, planner_token, 
     )
     assert response.status_code == 200
     assert response.json()["distance_km"] == expected
+
+
+def test_optimize_route_returns_order_direction_and_total_distance(
+    client, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    op1_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-ROUTE-1",
+        [[21.01, 52.11], [21.04, 52.13], [21.06, 52.14]],
+    )
+    op2_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-ROUTE-2",
+        [[21.08, 52.16], [21.10, 52.18], [21.12, 52.19]],
+    )
+
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [op1_id, op2_id],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["ordered_operations"]) == 2
+    assert {item["planned_operation_id"] for item in body["ordered_operations"]} == {op1_id, op2_id}
+    assert all(item["direction"] in {"forward", "reverse"} for item in body["ordered_operations"])
+    assert all(item["traversal_distance_km"] > 0 for item in body["ordered_operations"])
+    assert body["total_distance_km"] > 0
+
+
+def test_optimize_route_returns_direct_distance_for_empty_operations(
+    client, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    expected = round(geodesic((52.1, 21.0), (52.2, 21.1)).kilometers, 2)
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ordered_operations"] == []
+    assert body["total_distance_km"] == expected
+
+
+def test_optimize_route_returns_404_for_missing_landing_site(
+    client, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": 999999,
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [],
+        },
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Landing site not found"
+
+
+def test_optimize_route_returns_404_for_missing_planned_operation(
+    client, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [999999],
+        },
+    )
+    assert response.status_code == 404
+    assert "Planned operation not found" in response.json()["detail"]
+
+
+def test_optimize_route_returns_422_for_non_linestring_operation(
+    client, db_session, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    operation_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-INVALID-ROUTE",
+        [[21.01, 52.11], [21.03, 52.12]],
+    )
+    operation = db_session.get(PlannedOperation, operation_id)
+    assert operation is not None
+    operation.route_geometry = {"type": "Point", "coordinates": [21.01, 52.11]}
+    db_session.commit()
+
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [operation_id],
+        },
+    )
+    assert response.status_code == 422
+    assert "route geometry must be LineString" in response.json()["detail"]
+
+
+def test_optimize_route_rejects_duplicate_operation_ids(client, planner_token, authz, operational_entities) -> None:
+    ids = operational_entities
+    operation_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-DUPLICATE-ID",
+        [[21.02, 52.11], [21.05, 52.13]],
+    )
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [operation_id, operation_id],
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "planned_operation_ids must contain unique values"
+
+
+def test_optimize_route_requires_authentication(client, operational_entities) -> None:
+    ids = operational_entities
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [],
+        },
+    )
+    assert response.status_code == 401

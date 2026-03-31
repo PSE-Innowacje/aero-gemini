@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Tuple, Optional, Dict, Any
-import argparse
+from typing import Any, Dict, List, Optional, Tuple
 import json
 import math
 
+from fastapi import HTTPException, status
 from geopy.distance import geodesic
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from aero.models.landing_site import LandingSite
+from aero.models.planned_operation import PlannedOperation
 
 try:
     import elkai  # type: ignore
@@ -253,3 +258,95 @@ def plan_route(
 def parse_latlon(text: str) -> LatLon:
     lat_s, lon_s = text.split(",", 1)
     return float(lat_s.strip()), float(lon_s.strip())
+
+
+def _validate_linestring_coordinates(coordinates: Any, operation_id: int) -> List[List[float]]:
+    if not isinstance(coordinates, list) or len(coordinates) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Planned operation {operation_id} must contain at least 2 route coordinates",
+        )
+    return coordinates
+
+
+def _segment_from_operation(operation: PlannedOperation) -> Segment:
+    route_geometry = operation.route_geometry
+    if not isinstance(route_geometry, dict):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Planned operation {operation.id} route geometry is missing",
+        )
+    if route_geometry.get("type") != "LineString":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Planned operation {operation.id} route geometry must be LineString",
+        )
+    coordinates = _validate_linestring_coordinates(route_geometry.get("coordinates"), operation.id)
+    return segment_from_linestring(coordinates, name=f"planned-operation-{operation.id}")
+
+
+def optimize_flight_order_routing(
+    db: Session,
+    *,
+    start_site_id: int,
+    end_site_id: int,
+    planned_operation_ids: list[int],
+) -> dict[str, Any]:
+    if len(set(planned_operation_ids)) != len(planned_operation_ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="planned_operation_ids must contain unique values",
+        )
+
+    start_site = db.scalar(select(LandingSite).where(LandingSite.id == start_site_id))
+    end_site = db.scalar(select(LandingSite).where(LandingSite.id == end_site_id))
+    if start_site is None or end_site is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Landing site not found")
+
+    operations: list[PlannedOperation] = []
+    if planned_operation_ids:
+        requested_ids = set(planned_operation_ids)
+        operation_by_id = {
+            operation.id: operation
+            for operation in db.scalars(
+                select(PlannedOperation).where(PlannedOperation.id.in_(requested_ids))
+            )
+        }
+        missing_ids = [operation_id for operation_id in planned_operation_ids if operation_id not in operation_by_id]
+        if missing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Planned operation not found: {missing_ids}",
+            )
+        operations = [operation_by_id[operation_id] for operation_id in planned_operation_ids]
+
+    start: LatLon = (start_site.latitude, start_site.longitude)
+    end: LatLon = (end_site.latitude, end_site.longitude)
+    segments = [_segment_from_operation(operation) for operation in operations]
+    ordered_segments, total_distance_m = plan_route(segments=segments, start=start, end=end)
+
+    ordered_operations: list[dict[str, Any]] = []
+    for directed in ordered_segments:
+        operation = operations[directed.segment_index]
+        segment = segments[directed.segment_index]
+        direction = "forward" if directed.entry == segment.start else "reverse"
+        ordered_operations.append(
+            {
+                "planned_operation_id": operation.id,
+                "direction": direction,
+                "entry_point": {
+                    "longitude": directed.entry[1],
+                    "latitude": directed.entry[0],
+                },
+                "exit_point": {
+                    "longitude": directed.exit[1],
+                    "latitude": directed.exit[0],
+                },
+                "traversal_distance_km": round(directed.traversal_length_m / 1000, 2),
+            }
+        )
+
+    return {
+        "ordered_operations": ordered_operations,
+        "total_distance_km": round(total_distance_m / 1000, 2),
+    }
