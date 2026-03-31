@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
@@ -108,18 +109,59 @@ const CrewPage: React.FC = () => {
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? 'Edytuj członka załogi' : 'Nowy członek załogi'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input placeholder="Imię i nazwisko" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-            <Input type="email" placeholder="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
-            <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as CrewRole }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PILOT">Pilot</SelectItem>
-                <SelectItem value="OBSERVER">Observer</SelectItem>
-                <SelectItem value="CREW">Crew</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input type="date" value={form.licenseExpiry} onChange={e => setForm(f => ({ ...f, licenseExpiry: e.target.value }))} required />
-            <Input type="number" placeholder="Waga (kg)" value={form.weight || ''} onChange={e => setForm(f => ({ ...f, weight: Number(e.target.value) }))} required />
+            <div className="space-y-2">
+              <Label htmlFor="crew-name">Imię i nazwisko</Label>
+              <Input
+                id="crew-name"
+                placeholder="Imię i nazwisko"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="crew-email">Adres e-mail</Label>
+              <Input
+                id="crew-email"
+                type="email"
+                placeholder="Adres e-mail"
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="crew-role">Rola w załodze</Label>
+              <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as CrewRole }))}>
+                <SelectTrigger id="crew-role"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PILOT">Pilot</SelectItem>
+                  <SelectItem value="OBSERVER">Obserwator</SelectItem>
+                  <SelectItem value="CREW">Członek załogi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="crew-license-expiry">{form.role === 'PILOT' ? 'Ważność licencji do' : 'Ważność szkolenia do'}</Label>
+              <Input
+                id="crew-license-expiry"
+                type="date"
+                value={form.licenseExpiry}
+                onChange={e => setForm(f => ({ ...f, licenseExpiry: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="crew-weight">Waga (kg)</Label>
+              <Input
+                id="crew-weight"
+                type="number"
+                placeholder="Waga (kg)"
+                value={form.weight || ''}
+                onChange={e => setForm(f => ({ ...f, weight: Number(e.target.value) }))}
+                required
+              />
+            </div>
             <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
           </form>
         </DialogContent>
