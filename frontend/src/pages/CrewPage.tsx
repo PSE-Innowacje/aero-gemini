@@ -175,20 +175,23 @@ const CrewPage: React.FC = () => {
               <div><span className="text-muted-foreground">Członek załogi:</span> {previewing.name}</div>
               <div><span className="text-muted-foreground">Rola:</span> {previewing.role}</div>
               <div><span className="text-muted-foreground">Numer licencji pilota:</span> {previewing.pilotLicenseNumber ?? 'Brak'}</div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Ważność licencji:</span>
-                <span>{toDateOnly(previewing.licenseValidUntil) ?? 'Brak'}</span>
-                <Badge variant={isExpired(previewing.licenseValidUntil) ? 'destructive' : 'secondary'}>
-                  {getValidityLabel(previewing.licenseValidUntil)}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Ważność szkoleń:</span>
-                <span>{toDateOnly(previewing.trainingValidUntil)}</span>
-                <Badge variant={isExpired(previewing.trainingValidUntil) ? 'destructive' : 'secondary'}>
-                  {getValidityLabel(previewing.trainingValidUntil)}
-                </Badge>
-              </div>
+              {previewing.role === 'PILOT' ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Ważność licencji:</span>
+                  <span>{toDateOnly(previewing.licenseValidUntil) ?? 'Brak'}</span>
+                  <Badge variant={isExpired(previewing.licenseValidUntil) ? 'destructive' : 'secondary'}>
+                    {getValidityLabel(previewing.licenseValidUntil)}
+                  </Badge>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Ważność szkolenia:</span>
+                  <span>{toDateOnly(previewing.trainingValidUntil) ?? 'Brak'}</span>
+                  <Badge variant={isExpired(previewing.trainingValidUntil) ? 'destructive' : 'secondary'}>
+                    {getValidityLabel(previewing.trainingValidUntil)}
+                  </Badge>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

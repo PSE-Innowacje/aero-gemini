@@ -27,6 +27,31 @@ const handleUnauthorized = () => {
   window.location.assign('/login');
 };
 
+const toApiErrorMessage = (payload: any, fallback: string): string => {
+  const detail = payload?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const formatted = detail
+      .map((item: any) => {
+        if (typeof item === 'string') return item;
+        const message = typeof item?.msg === 'string' ? item.msg : null;
+        const location = Array.isArray(item?.loc)
+          ? item.loc
+              .filter((part: unknown) => typeof part === 'string' && !['body', 'query', 'path'].includes(part))
+              .join('.')
+          : '';
+        if (message && location) return `${location}: ${message}`;
+        return message;
+      })
+      .filter((part: unknown): part is string => typeof part === 'string' && part.trim().length > 0);
+
+    if (formatted.length > 0) return formatted.join(' | ');
+  }
+  if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message;
+  if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error;
+  return fallback;
+};
+
 async function request<T>(
   path: string,
   method: Method = 'GET',
@@ -51,7 +76,7 @@ async function request<T>(
     let message = fallback;
     try {
       const payload = await response.json();
-      message = payload?.detail || payload?.message || fallback;
+      message = toApiErrorMessage(payload, fallback);
     } catch {
       message = fallback;
     }
@@ -77,14 +102,7 @@ async function requestMultipart<T>(path: string, formData: FormData): Promise<T>
     let message = fallback;
     try {
       const payload = await response.json();
-      const detail = payload?.detail;
-      if (typeof detail === 'string') {
-        message = detail;
-      } else if (Array.isArray(detail) && detail.length > 0) {
-        message = String(detail[0]?.msg ?? fallback);
-      } else {
-        message = payload?.message || fallback;
-      }
+      message = toApiErrorMessage(payload, fallback);
     } catch {
       message = fallback;
     }
@@ -188,6 +206,29 @@ export const fetchUsers = async (): Promise<User[]> => {
     name: `${u.first_name} ${u.last_name}`.trim(),
     role: u.role,
   }));
+};
+
+export const createUser = async (data: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: Role;
+}): Promise<User> => {
+  const created = await request<any>('/users', 'POST', {
+    first_name: data.firstName,
+    last_name: data.lastName,
+    email: data.email,
+    password: data.password,
+    role: data.role,
+  });
+
+  return {
+    id: String(created.id),
+    email: created.email,
+    name: `${created.first_name} ${created.last_name}`.trim(),
+    role: created.role,
+  };
 };
 
 // Helicopters

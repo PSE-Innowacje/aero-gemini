@@ -25,6 +25,7 @@ services:
   frontend:
     image: node:22-bookworm
     container_name: "${COMPOSE_PROJECT_NAME}_frontend"
+    restart: unless-stopped
     working_dir: /workspace/frontend
     env_file:
       - .env
