@@ -9,6 +9,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 ENV PATH="${UV_PROJECT_ENVIRONMENT}/bin:$PATH"
+ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_AERO=0.0.0
 
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
@@ -24,8 +25,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.6.7 /uv /uvx /bin/
 # Set working dir
 WORKDIR /app
 
-# Copy project configuration from backend directory so dependencies are known
-COPY backend/pyproject.toml .
+# Copy project configuration so dependencies are known
+COPY backend/pyproject.toml ./pyproject.toml
 
 # Generate uv lock
 RUN uv lock
