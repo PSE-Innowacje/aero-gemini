@@ -1,8 +1,8 @@
 import os
 import sys
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 
 
 def main() -> None:
@@ -23,10 +23,22 @@ def main() -> None:
     from aero.services.planned_operations import normalize_route  # noqa: WPS433
 
     Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+    if "planned_operations" in inspector.get_table_names():
+        columns = {column["name"] for column in inspector.get_columns("planned_operations")}
+        if "comment_entries" not in columns:
+            # Local seed helper: if schema drift is detected, rebuild schema for current models.
+            print("Detected outdated schema (missing planned_operations.comment_entries). Recreating tables...")
+            Base.metadata.drop_all(bind=engine)
+            Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
     try:
         today = date.today()
+        seed_profile = os.getenv("SEED_PROFILE", "full").strip().lower()
+        if seed_profile not in {"minimal", "full"}:
+            raise ValueError("SEED_PROFILE must be one of: minimal, full")
+        is_full_profile = seed_profile == "full"
 
         # Users for each role (for login/demo of role-specific visibility)
         user_specs = [
@@ -63,27 +75,32 @@ def main() -> None:
                 "inspection_valid_until": today + timedelta(days=220),
                 "range_km": 450,
             },
-            {
-                "registration_number": "SP-HELI2",
-                "type": "EC135",
-                "description": "Secondary demo helicopter",
-                "max_crew": 6,
-                "max_crew_weight": 650,
-                "status": ResourceStatus.ACTIVE,
-                "inspection_valid_until": today + timedelta(days=300),
-                "range_km": 620,
-            },
-            {
-                "registration_number": "SP-HELI3",
-                "type": "Bell 407",
-                "description": "Reserve helicopter",
-                "max_crew": 4,
-                "max_crew_weight": 420,
-                "status": ResourceStatus.INACTIVE,
-                "inspection_valid_until": None,
-                "range_km": 300,
-            },
         ]
+        if is_full_profile:
+            helicopter_specs.extend(
+                [
+                    {
+                        "registration_number": "SP-HELI2",
+                        "type": "EC135",
+                        "description": "Secondary demo helicopter",
+                        "max_crew": 6,
+                        "max_crew_weight": 650,
+                        "status": ResourceStatus.ACTIVE,
+                        "inspection_valid_until": today + timedelta(days=300),
+                        "range_km": 620,
+                    },
+                    {
+                        "registration_number": "SP-HELI3",
+                        "type": "Bell 407",
+                        "description": "Reserve helicopter",
+                        "max_crew": 4,
+                        "max_crew_weight": 420,
+                        "status": ResourceStatus.INACTIVE,
+                        "inspection_valid_until": None,
+                        "range_km": 300,
+                    },
+                ]
+            )
         helicopters_by_reg: dict[str, Helicopter] = {}
         for heli_data in helicopter_specs:
             registration = heli_data["registration_number"]
@@ -107,16 +124,6 @@ def main() -> None:
                 "training_valid_until": today + timedelta(days=365),
             },
             {
-                "first_name": "Alice",
-                "last_name": "Pilot",
-                "email": "pilot2@example.com",
-                "weight": 78,
-                "role": CrewRole.PILOT,
-                "pilot_license_number": "LIC-1002",
-                "license_valid_until": today + timedelta(days=420),
-                "training_valid_until": today + timedelta(days=420),
-            },
-            {
                 "first_name": "Olivia",
                 "last_name": "Observer",
                 "email": "observer@example.com",
@@ -126,27 +133,42 @@ def main() -> None:
                 "license_valid_until": None,
                 "training_valid_until": today + timedelta(days=300),
             },
-            {
-                "first_name": "Chris",
-                "last_name": "Crew",
-                "email": "crew1@example.com",
-                "weight": 88,
-                "role": CrewRole.CREW,
-                "pilot_license_number": None,
-                "license_valid_until": None,
-                "training_valid_until": today + timedelta(days=280),
-            },
-            {
-                "first_name": "Nina",
-                "last_name": "Crew",
-                "email": "crew2@example.com",
-                "weight": 70,
-                "role": CrewRole.CREW,
-                "pilot_license_number": None,
-                "license_valid_until": None,
-                "training_valid_until": today + timedelta(days=310),
-            },
         ]
+        if is_full_profile:
+            crew_specs.extend(
+                [
+                    {
+                        "first_name": "Alice",
+                        "last_name": "Pilot",
+                        "email": "pilot2@example.com",
+                        "weight": 78,
+                        "role": CrewRole.PILOT,
+                        "pilot_license_number": "LIC-1002",
+                        "license_valid_until": today + timedelta(days=420),
+                        "training_valid_until": today + timedelta(days=420),
+                    },
+                    {
+                        "first_name": "Chris",
+                        "last_name": "Crew",
+                        "email": "crew1@example.com",
+                        "weight": 88,
+                        "role": CrewRole.CREW,
+                        "pilot_license_number": None,
+                        "license_valid_until": None,
+                        "training_valid_until": today + timedelta(days=280),
+                    },
+                    {
+                        "first_name": "Nina",
+                        "last_name": "Crew",
+                        "email": "crew2@example.com",
+                        "weight": 70,
+                        "role": CrewRole.CREW,
+                        "pilot_license_number": None,
+                        "license_valid_until": None,
+                        "training_valid_until": today + timedelta(days=310),
+                    },
+                ]
+            )
         crew_by_email: dict[str, CrewMember] = {}
         for crew_data in crew_specs:
             email = crew_data["email"]
@@ -161,9 +183,14 @@ def main() -> None:
         site_specs = [
             ("Warszawa", 52.2297, 21.0122),
             ("Poznań", 52.4064, 16.9252),
-            ("Kraków", 50.0647, 19.9450),
-            ("Gdańsk", 54.3520, 18.6466),
         ]
+        if is_full_profile:
+            site_specs.extend(
+                [
+                    ("Kraków", 50.0647, 19.9450),
+                    ("Gdańsk", 54.3520, 18.6466),
+                ]
+            )
         sites_by_name: dict[str, LandingSite] = {}
         for name, lat, lng in site_specs:
             site = db.scalar(select(LandingSite).where(LandingSite.name == name))
@@ -173,7 +200,8 @@ def main() -> None:
                 db.flush()
             sites_by_name[name] = site
 
-        # Planned operations with varied statuses for list/status-demo screens
+        # Planned operations with varied statuses for list/status-demo screens.
+        # Activities must match the current allowed dictionary values.
         operation_specs = [
             {
                 "project_code": "PRJ-001",
@@ -182,7 +210,7 @@ def main() -> None:
                 "proposed_date_to": today + timedelta(days=2),
                 "planned_date_from": today + timedelta(days=3),
                 "planned_date_to": today + timedelta(days=4),
-                "activities": [{"name": "Inspection", "duration_h": 2}],
+                "activities": ["ogledziny_wizualne"],
                 "extra_info": "Morning slot preferred",
                 "route_geometry": {
                     "type": "LineString",
@@ -195,47 +223,52 @@ def main() -> None:
                 "status": WorkflowStatus.DRAFT,
                 "contacts": ["contact@example.com"],
             },
-            {
-                "project_code": "PRJ-002",
-                "short_description": "Thermal scan of industrial area",
-                "proposed_date_from": today + timedelta(days=5),
-                "proposed_date_to": today + timedelta(days=6),
-                "planned_date_from": today + timedelta(days=7),
-                "planned_date_to": today + timedelta(days=7),
-                "activities": [{"name": "Thermal scan", "duration_h": 3}],
-                "extra_info": "Coordinate with site supervisor",
-                "route_geometry": {
-                    "type": "LineString",
-                    "coordinates": [
-                        [19.9450, 50.0647],
-                        [19.3000, 50.6000],
-                        [18.6466, 54.3520],
-                    ],
-                },
-                "status": WorkflowStatus.SUBMITTED,
-                "contacts": ["thermal@example.com"],
-            },
-            {
-                "project_code": "PRJ-003",
-                "short_description": "Pipeline survey sector west",
-                "proposed_date_from": today + timedelta(days=8),
-                "proposed_date_to": today + timedelta(days=9),
-                "planned_date_from": today + timedelta(days=10),
-                "planned_date_to": today + timedelta(days=11),
-                "activities": [{"name": "Survey", "duration_h": 4}],
-                "extra_info": "High-priority compliance mission",
-                "route_geometry": {
-                    "type": "LineString",
-                    "coordinates": [
-                        [16.9252, 52.4064],
-                        [17.8000, 52.0000],
-                        [19.9450, 50.0647],
-                    ],
-                },
-                "status": WorkflowStatus.APPROVED,
-                "contacts": ["ops@example.com"],
-            },
         ]
+        if is_full_profile:
+            operation_specs.extend(
+                [
+                    {
+                        "project_code": "PRJ-002",
+                        "short_description": "Thermal scan of industrial area",
+                        "proposed_date_from": today + timedelta(days=5),
+                        "proposed_date_to": today + timedelta(days=6),
+                        "planned_date_from": today + timedelta(days=7),
+                        "planned_date_to": today + timedelta(days=7),
+                        "activities": ["skan_3d", "zdjecia"],
+                        "extra_info": "Coordinate with site supervisor",
+                        "route_geometry": {
+                            "type": "LineString",
+                            "coordinates": [
+                                [19.9450, 50.0647],
+                                [19.3000, 50.6000],
+                                [18.6466, 54.3520],
+                            ],
+                        },
+                        "status": WorkflowStatus.SUBMITTED,
+                        "contacts": ["thermal@example.com"],
+                    },
+                    {
+                        "project_code": "PRJ-003",
+                        "short_description": "Pipeline survey sector west",
+                        "proposed_date_from": today + timedelta(days=8),
+                        "proposed_date_to": today + timedelta(days=9),
+                        "planned_date_from": today + timedelta(days=10),
+                        "planned_date_to": today + timedelta(days=11),
+                        "activities": ["patrolowanie", "lokalizacja_awarii"],
+                        "extra_info": "High-priority compliance mission",
+                        "route_geometry": {
+                            "type": "LineString",
+                            "coordinates": [
+                                [16.9252, 52.4064],
+                                [17.8000, 52.0000],
+                                [19.9450, 50.0647],
+                            ],
+                        },
+                        "status": WorkflowStatus.APPROVED,
+                        "contacts": ["ops@example.com"],
+                    },
+                ]
+            )
         operations_by_code: dict[str, PlannedOperation] = {}
         for op_data in operation_specs:
             code = op_data["project_code"]
@@ -261,44 +294,60 @@ def main() -> None:
                     status=op_data["status"],
                     created_by=admin.id,
                     contacts=op_data["contacts"],
+                    comment_entries=[],
                     post_realization_notes=None,
                 )
                 db.add(operation)
                 db.flush()
             else:
+                operation.short_description = op_data["short_description"]
+                operation.proposed_date_from = op_data["proposed_date_from"]
+                operation.proposed_date_to = op_data["proposed_date_to"]
+                operation.planned_date_from = op_data["planned_date_from"]
+                operation.planned_date_to = op_data["planned_date_to"]
+                operation.activities = op_data["activities"]
+                operation.extra_info = op_data["extra_info"]
+                operation.status = op_data["status"]
+                operation.contacts = op_data["contacts"]
                 operation.route_geometry = normalized_route["route_geometry"]
                 operation.route_bbox = normalized_route["route_bbox"]
                 operation.points_count = normalized_route["points_count"]
                 operation.distance_km = normalized_route["distance_km"]
             operations_by_code[code] = operation
 
-        # Flight orders tying together helicopters, crew, sites and operations
+        # Flight orders tying together helicopters, crew, sites and operations.
+        def dt_in_days(day_offset: int, hour: int) -> datetime:
+            return datetime.combine(today + timedelta(days=day_offset), time(hour=hour), tzinfo=UTC)
+
         flight_order_specs = [
             {
-                "planned_start": today + timedelta(days=1) + timedelta(hours=8),
-                "planned_end": today + timedelta(days=1) + timedelta(hours=12),
+                "planned_start": dt_in_days(1, 8),
+                "planned_end": dt_in_days(1, 12),
                 "pilot_email": "pilot@example.com",
                 "helicopter_reg": "SP-HELI1",
-                "crew_emails": ["observer@example.com", "crew1@example.com"],
-                "start_site_name": "Base A",
-                "end_site_name": "Site B",
+                "crew_emails": ["observer@example.com"],
+                "start_site_name": "Warszawa",
+                "end_site_name": "Poznań",
                 "estimated_distance": 100.0,
                 "operation_codes": ["PRJ-001"],
                 "status": WorkflowStatus.DRAFT,
             },
-            {
-                "planned_start": today + timedelta(days=1) + timedelta(hours=13),
-                "planned_end": today + timedelta(days=1) + timedelta(hours=17),
-                "pilot_email": "pilot2@example.com",
-                "helicopter_reg": "SP-HELI2",
-                "crew_emails": ["crew2@example.com"],
-                "start_site_name": "Site C",
-                "end_site_name": "Site D",
-                "estimated_distance": 150.0,
-                "operation_codes": ["PRJ-002", "PRJ-003"],
-                "status": WorkflowStatus.APPROVED,
-            },
         ]
+        if is_full_profile:
+            flight_order_specs.append(
+                {
+                    "planned_start": dt_in_days(2, 13),
+                    "planned_end": dt_in_days(2, 17),
+                    "pilot_email": "pilot2@example.com",
+                    "helicopter_reg": "SP-HELI2",
+                    "crew_emails": ["crew2@example.com"],
+                    "start_site_name": "Kraków",
+                    "end_site_name": "Gdańsk",
+                    "estimated_distance": 150.0,
+                    "operation_codes": ["PRJ-002", "PRJ-003"],
+                    "status": WorkflowStatus.APPROVED,
+                }
+            )
         for order_data in flight_order_specs:
             pilot = crew_by_email[order_data["pilot_email"]]
             helicopter = helicopters_by_reg[order_data["helicopter_reg"]]
@@ -333,9 +382,17 @@ def main() -> None:
                 existing.crew_members = crew_members
                 existing.planned_operations = planned_operations
                 db.add(existing)
+            else:
+                existing.planned_start = order_data["planned_start"]
+                existing.planned_end = order_data["planned_end"]
+                existing.status = order_data["status"]
+                existing.crew_weight = crew_weight
+                existing.estimated_distance = order_data["estimated_distance"]
+                existing.crew_members = crew_members
+                existing.planned_operations = planned_operations
 
         db.commit()
-        print("Seed data inserted (idempotent).")
+        print(f"Seed data inserted (idempotent). Profile: {seed_profile}.")
     finally:
         db.close()
 
