@@ -230,6 +230,21 @@ def main() -> None:
                 [
                     ("Kraków", 50.0647, 19.9450),
                     ("Gdańsk", 54.3520, 18.6466),
+                    # Additional landing sites for PSE operations department demo coverage.
+                    ("PSE Wroclaw", 51.1079, 17.0385),
+                    ("PSE Lodz", 51.7592, 19.4550),
+                    ("PSE Katowice", 50.2649, 19.0238),
+                    ("PSE Lublin", 51.2465, 22.5684),
+                    ("PSE Szczecin", 53.4285, 14.5528),
+                    ("PSE Bydgoszcz", 53.1235, 18.0084),
+                    ("PSE Rzeszow", 50.0412, 21.9991),
+                    ("PSE Bialystok", 53.1325, 23.1688),
+                    ("PSE Torun", 53.0138, 18.5984),
+                    ("PSE Kielce", 50.8661, 20.6286),
+                    ("PSE Olsztyn", 53.7784, 20.4801),
+                    ("PSE Opole", 50.6751, 17.9213),
+                    ("PSE Gorzow Wielkopolski", 52.7368, 15.2288),
+                    ("PSE Zielona Gora", 51.9356, 15.5062),
                 ]
             )
         sites_by_name: dict[str, LandingSite] = {}
