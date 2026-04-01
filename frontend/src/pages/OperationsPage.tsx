@@ -141,7 +141,7 @@ const OperationsPage: React.FC = () => {
   const qc = useQueryClient();
   const { user } = useAuthStore();
   const { data: operations = [], isLoading } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('3');
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<PlannedOperation | null>(null);
