@@ -119,7 +119,7 @@ const FlightOrdersPage: React.FC = () => {
   const { data: sites = [] } = useQuery({ queryKey: ['landingSites'], queryFn: fetchLandingSites });
   const { data: operations = [] } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
 
-  const [statusFilter, setStatusFilter] = useState<string>('2');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<FlightOrder | null>(null);
