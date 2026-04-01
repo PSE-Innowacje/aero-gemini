@@ -36,6 +36,7 @@ const statusColors: Record<OperationStatus, string> = {
 
 const allStatuses: OperationStatus[] = [1, 2, 3, 4, 5, 6, 7];
 const plannerEditableStatuses: OperationStatus[] = [1, 2, 3, 4, 5];
+const plannerResignationStatuses: OperationStatus[] = [1, 3, 4];
 
 const activityOptions = [
   { value: 'ogledziny_wizualne', label: 'Oględziny wizualne' },
@@ -562,6 +563,14 @@ const OperationsPage: React.FC = () => {
                     Potwierdz do planu
                   </Button>
                 </div>
+              )}
+
+              {(isPlanner && plannerResignationStatuses.includes(viewing.status)) && (
+                <Button size="sm" variant="outline" onClick={() => requestStatusChange(viewing.id, 7)} disabled={updateMut.isPending}>Rezygnuj</Button>
+              )}
+
+              {(isPlanner && viewing.status === 7) && (
+                <Button size="sm" variant="secondary" onClick={() => requestStatusChange(viewing.id, 1)} disabled={updateMut.isPending}>Wznów</Button>
               )}
 
               {(isPilot && viewing.status === 4) && (
