@@ -371,7 +371,7 @@ const OperationsPage: React.FC = () => {
               <TableHead>Nr</TableHead>
               <TableHead>Nr zlecenia/projektu</TableHead>
               <TableHead>Opis</TableHead>
-              <TableHead>Czynnosci</TableHead>
+              <TableHead>Czynności</TableHead>
               <TableHead>Dystans (km)</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24" />
@@ -423,7 +423,7 @@ const OperationsPage: React.FC = () => {
             <p className="text-right text-xs text-muted-foreground">{form.shortDescription.length}/100</p>
 
             <div>
-              <label className="text-sm font-medium text-foreground">Rodzaj czynnosci (min. 1)</label>
+              <label className="text-sm font-medium text-foreground">Rodzaj czynności (min. 1)</label>
               <div className="mt-1 flex flex-wrap gap-2">
                 {activityOptions.map((option) => (
                   <Badge
@@ -436,7 +436,7 @@ const OperationsPage: React.FC = () => {
                 ))}
               </div>
               {form.activities.length === 0 && (
-                <p className="mt-1 text-xs text-destructive">Wymagany wybor przynajmniej jednej czynnosci.</p>
+                <p className="mt-1 text-xs text-destructive">Wymagany wybor przynajmniej jednej czynności.</p>
               )}
             </div>
 
@@ -560,19 +560,23 @@ const OperationsPage: React.FC = () => {
               <div className="space-y-2 rounded-md border p-3">
                 <h3 className="text-sm font-semibold">Szczegóły operacji</h3>
                 <div className="grid gap-3 text-sm md:grid-cols-2">
-                  <div><span className="text-muted-foreground">Opis:</span> {viewing.shortDescription}</div>
-                  <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{operationStatusLabels[viewing.status]}</Badge></div>
-                  <div><span className="text-muted-foreground">Czynnosci:</span> {viewing.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</div>
-                  <div><span className="text-muted-foreground">Proponowane daty:</span> {viewing.proposedDateFrom || '-'} - {viewing.proposedDateTo || '-'}</div>
-                  <div><span className="text-muted-foreground">Planowane daty:</span> {viewing.plannedDateFrom || '-'} - {viewing.plannedDateTo || '-'}</div>
+                  <div className="space-y-1">
+                    <div><span className="text-muted-foreground">Opis:</span> {viewing.shortDescription}</div>
+                    <div><span className="text-muted-foreground">Czynności:</span> {viewing.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</div>
+                    <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{operationStatusLabels[viewing.status]}</Badge></div>
+                  </div>
+                  <div className="space-y-1">
+                    <div><span className="text-muted-foreground">Proponowane daty:</span> {viewing.proposedDateFrom || '-'} - {viewing.proposedDateTo || '-'}</div>
+                    <div><span className="text-muted-foreground">Planowane daty:</span> {viewing.plannedDateFrom || '-'} - {viewing.plannedDateTo || '-'}</div>
+                  </div>
                 </div>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1 rounded-md border p-3">
+                <div className="space-y-1 rounded-md border p-3 text-sm">
                   <h3 className="text-sm font-semibold">Trasa</h3>
-                  <div className="text-xs text-muted-foreground">Liczba punktów: {viewing.pointsCount}</div>
-                  <div className="text-xs text-muted-foreground">Długość (km): {viewing.distanceKm}</div>
+                  <div><span className="text-muted-foreground">Liczba punktów:</span> {viewing.pointsCount}</div>
+                  <div><span className="text-muted-foreground">Długość (km):</span> {viewing.distanceKm}</div>
                 </div>
                 <div className="space-y-1 rounded-md border p-3">
                   <h3 className="text-sm font-semibold">Osoby kontaktowe</h3>
