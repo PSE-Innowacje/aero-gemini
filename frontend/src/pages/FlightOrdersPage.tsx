@@ -125,6 +125,8 @@ const FlightOrdersPage: React.FC = () => {
   const { data: operations = [] } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [helicopterFilter, setHelicopterFilter] = useState<string>('all');
+  const [pilotFilter, setPilotFilter] = useState<string>('all');
   const [sortColumn, setSortColumn] = useState<SortableColumn>('plannedStart');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [open, setOpen] = useState(false);
@@ -192,6 +194,14 @@ const FlightOrdersPage: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
+    const helicopterFromUrl = searchParams.get('helicopterId');
+    setHelicopterFilter(helicopterFromUrl || 'all');
+
+    const pilotFromUrl = searchParams.get('pilotId');
+    setPilotFilter(pilotFromUrl || 'all');
+  }, [searchParams]);
+
+  useEffect(() => {
     const focusOrderId = searchParams.get('focusOrderId');
     if (!focusOrderId || focusOrderId === handledFocusOrderId || orders.length === 0) return;
     const order = orders.find((item) => item.id === focusOrderId);
@@ -202,11 +212,28 @@ const FlightOrdersPage: React.FC = () => {
   }, [searchParams, orders, handledFocusOrderId]);
 
   const filtered = useMemo(() => {
-    if (statusFilter === 'all') return orders;
-    if (statusFilter === 'pending') return orders.filter((o) => o.status === 1 || o.status === 2);
-    if (statusFilter === 'completed') return orders.filter((o) => o.status === 5 || o.status === 6);
-    return orders.filter((o) => o.status === Number(statusFilter));
-  }, [orders, statusFilter]);
+    let result = orders;
+
+    if (statusFilter === 'pending') {
+      result = result.filter((o) => o.status === 1 || o.status === 2);
+    }
+    else if (statusFilter === 'completed') {
+      result = result.filter((o) => o.status === 5 || o.status === 6);
+    }
+    else if (statusFilter !== 'all') {
+      result = result.filter((o) => o.status === Number(statusFilter));
+    }
+
+    if (helicopterFilter !== 'all') {
+      result = result.filter((o) => o.helicopterId === helicopterFilter);
+    }
+
+    if (pilotFilter !== 'all') {
+      result = result.filter((o) => o.pilotId === pilotFilter);
+    }
+
+    return result;
+  }, [orders, statusFilter, helicopterFilter, pilotFilter]);
 
   const getHelicopterName = (id: string) => helicopters.find(h => h.id === id)?.registration ?? id;
   const getPilotName = (id: string) => crew.find(c => c.id === id)?.name ?? id;
@@ -636,7 +663,7 @@ const FlightOrdersPage: React.FC = () => {
         )}
       </div>
 
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <span className="text-sm text-muted-foreground">Status:</span>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40 justify-start [&>svg]:ml-auto">
@@ -657,6 +684,42 @@ const FlightOrdersPage: React.FC = () => {
             {([1, 2, 3, 4, 5, 6, 7] as FlightOrderStatus[]).map(s => (
               <SelectItem key={s} value={String(s)}>{flightOrderStatusLabels[s]}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        <span className="text-sm text-muted-foreground ml-2">Helikopter:</span>
+        <Select value={helicopterFilter} onValueChange={setHelicopterFilter}>
+          <SelectTrigger className="w-48 justify-start [&>svg]:ml-auto">
+            <span className="truncate text-left">
+              {helicopterFilter === 'all' ? 'Wszystkie' : getHelicopterName(helicopterFilter)}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Wszystkie</SelectItem>
+            {helicopters.map((h) => (
+              <SelectItem key={h.id} value={h.id}>
+                {h.registration} ({h.type})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <span className="text-sm text-muted-foreground ml-2">Pilot:</span>
+        <Select value={pilotFilter} onValueChange={setPilotFilter}>
+          <SelectTrigger className="w-52 justify-start [&>svg]:ml-auto">
+            <span className="truncate text-left">
+              {pilotFilter === 'all' ? 'Wszyscy' : getPilotName(pilotFilter)}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Wszyscy</SelectItem>
+            {crew
+              .filter((member) => member.role === 'PILOT')
+              .map((member) => (
+                <SelectItem key={member.id} value={member.id}>
+                  {member.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
