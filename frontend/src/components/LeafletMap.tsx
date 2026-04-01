@@ -23,6 +23,22 @@ const siteIcon = L.divIcon({
   popupAnchor: [0, -10],
 });
 
+const siteStartIcon = L.divIcon({
+  className: 'leaflet-marker-site-start',
+  html: '<span class="marker-dot"></span>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+  popupAnchor: [0, -10],
+});
+
+const siteEndIcon = L.divIcon({
+  className: 'leaflet-marker-site-end',
+  html: '<span class="marker-dot"></span>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+  popupAnchor: [0, -10],
+});
+
 const operationDotIcon = L.divIcon({
   className: 'leaflet-marker-operation-dot',
   html: '<span class="marker-dot"></span>',
@@ -53,7 +69,7 @@ export interface MapMarker {
   lat: number;
   lng: number;
   popup?: string;
-  markerType?: 'default' | 'site' | 'operation';
+  markerType?: 'default' | 'site' | 'site-start' | 'site-end' | 'operation';
 }
 
 export interface MapPolyline {
@@ -181,11 +197,16 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     markersRef.current.forEach(m => m.remove());
     markersRef.current = markers.map(m => {
       const isSelected = selectedMarkerId === m.id;
-      const markerIcon = m.markerType === 'operation'
-        ? operationDotIcon
-        : m.markerType === 'site'
-          ? siteIcon
-          : defaultIcon;
+      const markerIcon =
+        m.markerType === 'operation'
+          ? operationDotIcon
+          : m.markerType === 'site-start'
+            ? siteStartIcon
+            : m.markerType === 'site-end'
+              ? siteEndIcon
+              : m.markerType === 'site'
+                ? siteIcon
+                : defaultIcon;
       const marker = L.marker([m.lat, m.lng], {
         icon: isSelected ? highlightIcon : markerIcon,
         zIndexOffset: isSelected ? 1000 : 0,

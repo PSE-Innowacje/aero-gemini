@@ -136,6 +136,8 @@ All colors MUST be HSL.
 }
 
 .leaflet-marker-site,
+.leaflet-marker-site-start,
+.leaflet-marker-site-end,
 .leaflet-marker-operation-dot {
   background: transparent !important;
   border: 0 !important;
@@ -149,6 +151,26 @@ All colors MUST be HSL.
   background: #2563eb;
   border: 2px solid #ffffff;
   box-shadow: 0 0 0 1px #1d4ed8;
+}
+
+.leaflet-marker-site-start .marker-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #1d4ed8;
+}
+
+.leaflet-marker-site-end .marker-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #16a34a;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #15803d;
 }
 
 .leaflet-marker-operation-dot .marker-dot {

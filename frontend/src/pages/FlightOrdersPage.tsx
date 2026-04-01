@@ -542,10 +542,22 @@ const FlightOrdersPage: React.FC = () => {
   // Map data for detail view
   const viewingMarkers: MapMarker[] = useMemo(() => {
     if (!viewing) return [];
-    const siteMarkers = [viewing.startSiteId, viewing.endSiteId]
-      .map(id => sites.find(s => s.id === id))
-      .filter(Boolean)
-      .map(s => ({ id: `site-${s!.id}`, lat: s!.latitude, lng: s!.longitude, popup: s!.name, markerType: 'site' as const }));
+    const siteMarkers = [
+      { siteId: viewing.startSiteId, markerType: 'site-start' as const, prefix: 'start' },
+      { siteId: viewing.endSiteId, markerType: 'site-end' as const, prefix: 'end' },
+    ]
+      .map(({ siteId, markerType, prefix }) => {
+        const site = sites.find((item) => item.id === siteId);
+        if (!site) return null;
+        return {
+          id: `${prefix}-site-${site.id}`,
+          lat: site.latitude,
+          lng: site.longitude,
+          popup: site.name,
+          markerType,
+        };
+      })
+      .filter((marker): marker is NonNullable<typeof marker> => marker !== null);
     const orderedViewingOperations = viewingPreviewRoute?.orderedOperations ?? [];
     const routeVisuals = orderedViewingOperations.length > 0
       ? buildFlightPreviewRouteVisualsFromOrderedOperations(
@@ -1010,25 +1022,70 @@ const FlightOrdersPage: React.FC = () => {
           <DialogHeader><DialogTitle>Zlecenie #{viewing?.id}</DialogTitle></DialogHeader>
           {viewing && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="text-muted-foreground">Planowany start:</span> {new Date(viewing.plannedStart).toLocaleString('pl-PL')}</div>
-                <div><span className="text-muted-foreground">Planowane ladowanie:</span> {new Date(viewing.plannedEnd).toLocaleString('pl-PL')}</div>
-                <div><span className="text-muted-foreground">Helikopter:</span> {getHelicopterName(viewing.helicopterId)}</div>
-                <div><span className="text-muted-foreground">Pilot:</span> {getPilotName(viewing.pilotId)}</div>
-                <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{flightOrderStatusLabels[viewing.status]}</Badge></div>
-                <div><span className="text-muted-foreground">Start:</span> {getSiteName(viewing.startSiteId)}</div>
-                <div><span className="text-muted-foreground">Cel:</span> {getSiteName(viewing.endSiteId)}</div>
-                <div><span className="text-muted-foreground">Dlugosc szacowana:</span> {viewing.estimatedDistance != null ? `${viewing.estimatedDistance} km` : '-'}</div>
-                <div><span className="text-muted-foreground">Dlugosc faktyczna:</span> {viewing.actualDistance != null ? `${viewing.actualDistance} km` : '-'}</div>
+              <div className="grid gap-4 md:grid-cols-2 text-sm">
+                <div className="space-y-1 rounded-md border p-3">
+                  <p><span className="text-muted-foreground">Planowany start:</span> {new Date(viewing.plannedStart).toLocaleString('pl-PL')}</p>
+                  <p><span className="text-muted-foreground">Lotnisko startowe:</span> {getSiteName(viewing.startSiteId)}</p>
+                </div>
+                <div className="space-y-1 rounded-md border p-3">
+                  <p><span className="text-muted-foreground">Planowane ladowanie:</span> {new Date(viewing.plannedEnd).toLocaleString('pl-PL')}</p>
+                  <p><span className="text-muted-foreground">Lotnisko docelowe:</span> {getSiteName(viewing.endSiteId)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3 text-sm space-y-1">
+                <p className="font-medium text-foreground">Długość lotu</p>
+                <p><span className="text-muted-foreground">Szacowana:</span> {viewing.estimatedDistance != null ? `${viewing.estimatedDistance} km` : '-'}</p>
+                <p><span className="text-muted-foreground">Faktyczna:</span> {viewing.actualDistance != null ? `${viewing.actualDistance} km` : '-'}</p>
+              </div>
+
+              <div className="rounded-md border p-3 text-sm space-y-2">
+                <div className="grid gap-2 md:grid-cols-3">
+                  <div>
+                    <span className="text-muted-foreground">Helikopter:</span>{' '}
+                    {getHelicopterName(viewing.helicopterId)}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Pilot:</span>{' '}
+                    {getPilotName(viewing.pilotId)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge className={statusColors[viewing.status]}>{flightOrderStatusLabels[viewing.status]}</Badge>
+                  </div>
+                </div>
               </div>
 
               {viewingMarkers.length > 0 && (
-                <LeafletMap
-                  center={viewingCenter}
-                  zoom={8}
-                  markers={viewingMarkers}
-                  polylines={viewingPolylines}
-                />
+                <div className="space-y-2">
+                  <LeafletMap
+                    center={viewingCenter}
+                    zoom={8}
+                    markers={viewingMarkers}
+                    polylines={viewingPolylines}
+                  />
+                  <div className="rounded-md border p-3 text-xs text-muted-foreground">
+                    <p className="mb-2 font-medium text-foreground">Legenda</p>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div className="flex items-center gap-2">
+                        <span className="h-3.5 w-3.5 rounded-full border border-white bg-blue-600 shadow-[0_0_0_1px_#1d4ed8]" />
+                        <span>Lotnisko startowe</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="h-3.5 w-3.5 rounded-full border border-white bg-green-600 shadow-[0_0_0_1px_#15803d]" />
+                        <span>Lotnisko docelowe</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full border border-white bg-orange-500 shadow-[0_0_0_1px_#c2410c]" />
+                        <span>Operacja</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-0.5 w-5 bg-slate-800" />
+                        <span>Tranzyt</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
