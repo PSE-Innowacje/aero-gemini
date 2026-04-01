@@ -707,7 +707,7 @@ def test_update_rejects_completion_without_actual_dates(
         json={"status": 5},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "actual_start and actual_end are required before status 5 or 6"
+    assert response.json()["detail"] == "actual_start and actual_end are required before marking the flight order as completed"
 
 
 def test_update_allows_setting_actual_distance(

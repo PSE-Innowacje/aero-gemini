@@ -468,7 +468,7 @@ const FlightOrdersPage: React.FC = () => {
     if ((nextStatus === 5 || nextStatus === 6) && (!order.actualStart || !order.actualEnd)) {
       toast({
         title: 'Uzupelnij daty rzeczywiste',
-        description: 'Status 5/6 wymaga daty i godziny rzeczywistego startu oraz ladowania.',
+        description: 'Aby oznaczyc lot jako zakonczony, podaj rzeczywisty czas startu i ladowania.',
         variant: 'destructive',
       });
       return;

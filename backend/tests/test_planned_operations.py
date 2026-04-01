@@ -138,7 +138,7 @@ def test_status_transition_requires_supervisor_role(client, planner_token, authz
         json={"status": 2},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "Planner cannot perform this status transition"
+    assert response.json()["detail"] == "Planner role is not allowed to perform this operation status change"
 
 
 def test_planner_can_resign_operation_via_status_change(client, planner_token, authz) -> None:
@@ -177,7 +177,7 @@ def test_invalid_status_transition_is_rejected(client, planner_token, supervisor
         json={"status": 6},
     )
     assert second.status_code == 400
-    assert second.json()["detail"] == "Invalid status transition"
+    assert second.json()["detail"] == "Requested operation status change is not allowed from the current status"
 
 
 def test_rejected_operation_can_transition_back_to_draft(client, planner_token, supervisor_token, authz) -> None:
