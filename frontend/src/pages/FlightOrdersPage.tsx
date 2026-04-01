@@ -131,7 +131,7 @@ const FlightOrdersPage: React.FC = () => {
   const [form, setForm] = useState({
     plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', helicopterId: '', pilotId: '', crewIds: [] as string[],
     landingSiteIds: [] as string[], operationIds: [] as string[], status: 1 as FlightOrderStatus,
-    startSiteId: '', endSiteId: '',
+    startSiteId: '', endSiteId: '', actualDistance: '',
   });
   const [debouncedPreviewInput, setDebouncedPreviewInput] = useState<{
     startSiteId: string;
@@ -225,6 +225,7 @@ const FlightOrdersPage: React.FC = () => {
       status: 1,
       startSiteId: '',
       endSiteId: '',
+      actualDistance: '',
     });
     setOpen(true);
   };
@@ -243,6 +244,7 @@ const FlightOrdersPage: React.FC = () => {
       status: o.status,
       startSiteId: o.startSiteId,
       endSiteId: o.endSiteId,
+      actualDistance: o.actualDistance != null ? String(o.actualDistance) : '',
     });
     setOpen(true);
   };
@@ -444,11 +446,18 @@ const FlightOrdersPage: React.FC = () => {
       toast({ title: 'Wybierz co najmniej jedną operację', variant: 'destructive' });
       return;
     }
-    if (editing) updateMut.mutate({ id: editing.id, ...form });
+    if (editing) {
+      updateMut.mutate({
+        id: editing.id,
+        ...form,
+        actualDistance: form.actualDistance.trim() === '' ? undefined : Number(form.actualDistance),
+      });
+    }
     else {
       const payload = {
         ...form,
         operationIds: [...form.operationIds],
+        actualDistance: undefined,
       };
       createMut.mutate(payload);
     }
@@ -722,6 +731,18 @@ const FlightOrdersPage: React.FC = () => {
                     <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground">Faktyczna dlugosc lotu (km)</label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    value={form.actualDistance}
+                    onChange={e => setForm(f => ({ ...f, actualDistance: e.target.value }))}
+                    placeholder="np. 143.5"
+                  />
+                  <p className="text-xs text-muted-foreground">Uzupełnij po wykonaniu lotu.</p>
+                </div>
               </>
             )}
 
@@ -819,6 +840,12 @@ const FlightOrdersPage: React.FC = () => {
                   : `${crewWeight} / - kg`}
               </p>
               {helicopter && <p><span className="text-muted-foreground">Maks. zasięg:</span> {helicopter.maxRange} km</p>}
+              {editing && (
+                <p>
+                  <span className="text-muted-foreground">Szacowany dystans:</span>{' '}
+                  {editing.estimatedDistance != null ? `${editing.estimatedDistance} km` : '-'}
+                </p>
+              )}
               {!editing && (
                 <p>
                   <span className="text-muted-foreground">Szacowany dystans:</span>{' '}
@@ -898,6 +925,8 @@ const FlightOrdersPage: React.FC = () => {
                 <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{flightOrderStatusLabels[viewing.status]}</Badge></div>
                 <div><span className="text-muted-foreground">Start:</span> {getSiteName(viewing.startSiteId)}</div>
                 <div><span className="text-muted-foreground">Cel:</span> {getSiteName(viewing.endSiteId)}</div>
+                <div><span className="text-muted-foreground">Dlugosc szacowana:</span> {viewing.estimatedDistance != null ? `${viewing.estimatedDistance} km` : '-'}</div>
+                <div><span className="text-muted-foreground">Dlugosc faktyczna:</span> {viewing.actualDistance != null ? `${viewing.actualDistance} km` : '-'}</div>
               </div>
 
               {viewingMarkers.length > 0 && (

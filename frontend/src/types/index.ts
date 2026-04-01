@@ -115,6 +115,7 @@ export interface FlightOrder {
   endSiteId: string;
   crewWeight?: number;
   estimatedDistance?: number;
+  actualDistance?: number;
 }
 
 export interface FlightOrderPreviewOperation {

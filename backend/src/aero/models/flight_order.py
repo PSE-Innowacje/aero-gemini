@@ -39,6 +39,7 @@ class FlightOrder(TimestampedModel):
     end_site_id: Mapped[int] = mapped_column(ForeignKey("landing_sites.id"), nullable=False)
     crew_weight: Mapped[int] = mapped_column(Integer, default=0)
     estimated_distance: Mapped[float] = mapped_column(Float, default=0.0)
+    actual_distance: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     status: Mapped[FlightOrderStatus] = mapped_column(
         Enum(FlightOrderStatus),
         default=FlightOrderStatus.NEW,

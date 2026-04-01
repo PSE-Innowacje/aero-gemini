@@ -36,6 +36,7 @@ class FlightOrderUpdate(ORMModel):
     start_site_id: int | None = None
     end_site_id: int | None = None
     estimated_distance: float | None = None
+    actual_distance: float | None = None
     status: FlightOrderStatus | None = None
     planned_operation_ids: list[int] | None = None
 
@@ -70,6 +71,7 @@ class FlightOrderRead(ORMModel):
     planned_operation_ids: list[int]
     crew_weight: int
     estimated_distance: float
+    actual_distance: float | None = None
     status: FlightOrderStatus
 
 
