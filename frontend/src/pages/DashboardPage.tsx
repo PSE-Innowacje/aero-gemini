@@ -1,14 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { fetchLandingSites, fetchHelicopters, fetchCrew, fetchOperations, fetchFlightOrders } from '@/api/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plane, Users, MapPin, ClipboardList } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
-import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
-import { buildFlightOrderPolylinePositions } from '@/lib/flightOrderRoute';
-
-const ROUTE_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2'];
+import type { MapMarker } from '@/components/LeafletMap';
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -17,15 +14,6 @@ const DashboardPage: React.FC = () => {
   const { data: crew = [] } = useQuery({ queryKey: ['crew'], queryFn: fetchCrew });
   const { data: operations = [] } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
   const { data: flightOrders = [] } = useQuery({ queryKey: ['flightOrders'], queryFn: fetchFlightOrders });
-
-  const [visibleRoutes, setVisibleRoutes] = useState<Record<string, boolean>>({});
-
-  // Default all routes to visible
-  const isRouteVisible = (id: string) => visibleRoutes[id] !== false;
-
-  const toggleRoute = (id: string) => {
-    setVisibleRoutes(prev => ({ ...prev, [id]: !isRouteVisible(id) }));
-  };
 
   const center: [number, number] = sites.length > 0
     ? [sites.reduce((s, v) => s + v.latitude, 0) / sites.length, sites.reduce((s, v) => s + v.longitude, 0) / sites.length]
@@ -37,21 +25,6 @@ const DashboardPage: React.FC = () => {
     lng: site.longitude,
     popup: `<strong>${site.name}</strong><br/>Wys.: ${site.elevation} m n.p.m.<br/>Status: ${site.status}<br/><small>${site.latitude.toFixed(4)}, ${site.longitude.toFixed(4)}</small>`,
   }));
-
-  const routePolylines: MapPolyline[] = useMemo(() => {
-    return flightOrders
-      .map((order, i) => {
-        if (!isRouteVisible(order.id)) return null;
-        const positions = buildFlightOrderPolylinePositions(order, sites, operations);
-        if (!positions || positions.length < 2) return null;
-        return {
-          positions,
-          color: ROUTE_COLORS[i % ROUTE_COLORS.length],
-          weight: 3,
-        };
-      })
-      .filter(Boolean) as MapPolyline[];
-  }, [flightOrders, sites, operations, visibleRoutes]);
 
   return (
     <div className="space-y-6">
@@ -92,29 +65,7 @@ const DashboardPage: React.FC = () => {
           <CardTitle>Mapa lądowisk i tras lotów</CardTitle>
         </CardHeader>
         <CardContent>
-          <LeafletMap center={center} zoom={8} markers={markers} polylines={routePolylines} className="h-[500px]" />
-          {flightOrders.length > 0 && (
-            <div className="flex flex-wrap gap-3 mt-3">
-              {flightOrders.map((order, i) => {
-                const startName = sites.find(s => s.id === order.startSiteId)?.name ?? '?';
-                const endName = sites.find(s => s.id === order.endSiteId)?.name ?? '?';
-                return (
-                  <button
-                    key={order.id}
-                    onClick={() => toggleRoute(order.id)}
-                    className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border transition-colors ${
-                      isRouteVisible(order.id)
-                        ? 'border-border bg-muted text-foreground'
-                        : 'border-transparent bg-transparent text-muted-foreground line-through opacity-50'
-                    }`}
-                  >
-                    <span className="inline-block w-4 h-1 rounded" style={{ backgroundColor: ROUTE_COLORS[i % ROUTE_COLORS.length] }} />
-                    {startName} → {endName}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <LeafletMap center={center} zoom={8} markers={markers} className="h-[500px]" />
         </CardContent>
       </Card>
     </div>
