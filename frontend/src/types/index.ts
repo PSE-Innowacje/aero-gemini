@@ -88,17 +88,23 @@ export interface PlannedOperation {
   routeGeometry?: OperationRouteGeometry | null;
 }
 
-export type FlightOrderStatus = 1 | 2 | 3 | 4;
+export type FlightOrderStatus = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export const flightOrderStatusLabels: Record<FlightOrderStatus, string> = {
-  1: 'Draft',
-  2: 'Pending',
-  3: 'Approved',
-  4: 'Completed',
+  1: 'Wprowadzone',
+  2: 'Przekazane do akceptacji',
+  3: 'Odrzucone',
+  4: 'Zaakceptowane',
+  5: 'Zrealizowane w czesci',
+  6: 'Zrealizowane w calosci',
+  7: 'Nie zrealizowane',
 };
 
 export interface FlightOrder {
   id: string;
-  startTime: string;
+  plannedStart: string;
+  plannedEnd: string;
+  actualStart?: string;
+  actualEnd?: string;
   helicopterId: string;
   pilotId: string;
   crewIds: string[];
@@ -107,6 +113,8 @@ export interface FlightOrder {
   status: FlightOrderStatus;
   startSiteId: string;
   endSiteId: string;
+  crewWeight?: number;
+  estimatedDistance?: number;
 }
 
 export interface FlightOrderPreviewOperation {

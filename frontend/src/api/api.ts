@@ -235,7 +235,10 @@ const toUiOperation = (o: any): PlannedOperation => ({
 
 const toUiOrder = (o: any): FlightOrder => ({
   id: String(o.id),
-  startTime: o.planned_start ?? '',
+  plannedStart: o.planned_start ?? '',
+  plannedEnd: o.planned_end ?? '',
+  actualStart: o.actual_start ?? '',
+  actualEnd: o.actual_end ?? '',
   helicopterId: String(o.helicopter_id),
   pilotId: String(o.pilot_id),
   crewIds: Array.isArray(o.crew_ids) ? o.crew_ids.map(String) : [],
@@ -244,6 +247,8 @@ const toUiOrder = (o: any): FlightOrder => ({
   status: o.status,
   startSiteId: String(o.start_site_id),
   endSiteId: String(o.end_site_id),
+  crewWeight: Number(o.crew_weight ?? 0),
+  estimatedDistance: Number(o.estimated_distance ?? 0),
 });
 
 const toUiFlightOrderPreview = (p: any): FlightOrderPreview => ({
@@ -533,9 +538,8 @@ export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<
     );
   }
   const payload = {
-    planned_start: data.startTime || null,
-    planned_end: data.startTime || null,
-    pilot_id: Number(data.pilotId),
+    planned_start: data.plannedStart || null,
+    planned_end: data.plannedEnd || null,
     helicopter_id: Number(data.helicopterId),
     crew_ids: data.crewIds.map(Number),
     start_site_id: Number(data.startSiteId),
@@ -547,10 +551,10 @@ export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<
 };
 export const updateFlightOrder = async (id: string, data: Partial<FlightOrder>): Promise<FlightOrder> => {
   const payload: Record<string, unknown> = {};
-  if (data.startTime !== undefined) {
-    payload.planned_start = data.startTime || null;
-    payload.planned_end = data.startTime || null;
-  }
+  if (data.plannedStart !== undefined) payload.planned_start = data.plannedStart || null;
+  if (data.plannedEnd !== undefined) payload.planned_end = data.plannedEnd || null;
+  if (data.actualStart !== undefined) payload.actual_start = data.actualStart || null;
+  if (data.actualEnd !== undefined) payload.actual_end = data.actualEnd || null;
   if (data.pilotId !== undefined) payload.pilot_id = Number(data.pilotId);
   if (data.helicopterId !== undefined) payload.helicopter_id = Number(data.helicopterId);
   if (data.crewIds !== undefined) payload.crew_ids = data.crewIds.map(Number);

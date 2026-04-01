@@ -10,7 +10,7 @@ import {
   fetchOperations,
   previewFlightOrderRoute,
 } from '@/api/api';
-import type { FlightOrder, FlightOrderStatus } from '@/types';
+import type { FlightOrder, FlightOrderStatus, Role } from '@/types';
 import { flightOrderStatusLabels } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -23,15 +23,41 @@ import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
 import { buildFlightOrderPolylinePositions, buildFlightPreviewPolylinePositions } from '@/lib/flightOrderRoute';
+import { useAuthStore } from '@/store/authStore';
 
 const statusColors: Record<FlightOrderStatus, string> = {
-  1: 'bg-muted text-muted-foreground',
+  1: 'bg-slate-100 text-slate-800',
   2: 'bg-blue-100 text-blue-800',
-  3: 'bg-green-100 text-green-800',
-  4: 'bg-purple-100 text-purple-800',
+  3: 'bg-red-100 text-red-800',
+  4: 'bg-emerald-100 text-emerald-800',
+  5: 'bg-violet-100 text-violet-800',
+  6: 'bg-green-100 text-green-800',
+  7: 'bg-zinc-200 text-zinc-800',
+};
+
+const getAllowedStatusOptions = (
+  currentStatus: FlightOrderStatus,
+  role: Role | undefined
+): FlightOrderStatus[] => {
+  if (!role) return [currentStatus];
+
+  if (role === 'PILOT') {
+    if (currentStatus === 1) return [1, 2];
+    if (currentStatus === 4) return [4, 5, 6, 7];
+    return [currentStatus];
+  }
+
+  if (role === 'SUPERVISOR') {
+    if (currentStatus === 2) return [2, 3, 4];
+    return [currentStatus];
+  }
+
+  // ADMIN: read-only in scope of flight-order workflow.
+  return [currentStatus];
 };
 
 const FlightOrdersPage: React.FC = () => {
+  const { user } = useAuthStore();
   const qc = useQueryClient();
   const { data: orders = [], isLoading } = useQuery({ queryKey: ['flightOrders'], queryFn: fetchFlightOrders });
   const { data: helicopters = [] } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
@@ -45,7 +71,7 @@ const FlightOrdersPage: React.FC = () => {
   const [editing, setEditing] = useState<FlightOrder | null>(null);
   const [viewing, setViewing] = useState<FlightOrder | null>(null);
   const [form, setForm] = useState({
-    startTime: '', helicopterId: '', pilotId: '', crewIds: [] as string[],
+    plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', helicopterId: '', pilotId: '', crewIds: [] as string[],
     landingSiteIds: [] as string[], operationIds: [] as string[], status: 1 as FlightOrderStatus,
     startSiteId: '', endSiteId: '',
   });
@@ -80,12 +106,38 @@ const FlightOrdersPage: React.FC = () => {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ startTime: '', helicopterId: '', pilotId: '', crewIds: [], landingSiteIds: [], operationIds: [], status: 1, startSiteId: '', endSiteId: '' });
+    setForm({
+      plannedStart: '',
+      plannedEnd: '',
+      actualStart: '',
+      actualEnd: '',
+      helicopterId: '',
+      pilotId: '',
+      crewIds: [],
+      landingSiteIds: [],
+      operationIds: [],
+      status: 1,
+      startSiteId: '',
+      endSiteId: '',
+    });
     setOpen(true);
   };
   const openEdit = (o: FlightOrder) => {
     setEditing(o);
-    setForm({ startTime: o.startTime, helicopterId: o.helicopterId, pilotId: o.pilotId, crewIds: o.crewIds, landingSiteIds: o.landingSiteIds, operationIds: o.operationIds, status: o.status, startSiteId: o.startSiteId, endSiteId: o.endSiteId });
+    setForm({
+      plannedStart: o.plannedStart,
+      plannedEnd: o.plannedEnd,
+      actualStart: o.actualStart ?? '',
+      actualEnd: o.actualEnd ?? '',
+      helicopterId: o.helicopterId,
+      pilotId: o.pilotId,
+      crewIds: o.crewIds,
+      landingSiteIds: o.landingSiteIds,
+      operationIds: o.operationIds,
+      status: o.status,
+      startSiteId: o.startSiteId,
+      endSiteId: o.endSiteId,
+    });
     setOpen(true);
   };
 
@@ -100,7 +152,7 @@ const FlightOrdersPage: React.FC = () => {
   }, [form.pilotId, form.crewIds, crew]);
 
   const helicopter = helicopters.find(h => h.id === form.helicopterId);
-  const overweight = helicopter ? crewWeight > helicopter.maxWeight * 0.3 : false;
+  const overweight = helicopter ? crewWeight > helicopter.maxWeight : false;
 
   const expiredLicenses = useMemo(() => {
     const ids = [form.pilotId, ...form.crewIds];
@@ -191,6 +243,10 @@ const FlightOrdersPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editing && form.operationIds.length === 0) {
+      toast({ title: 'Wybierz co najmniej jedną operację', variant: 'destructive' });
+      return;
+    }
     if (editing) updateMut.mutate({ id: editing.id, ...form });
     else {
       const payload = {
@@ -199,6 +255,19 @@ const FlightOrdersPage: React.FC = () => {
       };
       createMut.mutate(payload);
     }
+  };
+
+  const handleInlineStatusChange = (order: FlightOrder, nextStatus: FlightOrderStatus) => {
+    if (order.status === nextStatus) return;
+    if ((nextStatus === 5 || nextStatus === 6) && (!order.actualStart || !order.actualEnd)) {
+      toast({
+        title: 'Uzupelnij daty rzeczywiste',
+        description: 'Status 5/6 wymaga daty i godziny rzeczywistego startu oraz ladowania.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    updateMut.mutate({ id: order.id, status: nextStatus });
   };
 
   // Map data for detail view
@@ -227,7 +296,9 @@ const FlightOrdersPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Zlecenia na lot</h1>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
+        {user?.role === 'PILOT' && (
+          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
+        )}
       </div>
 
       <div className="flex gap-2 items-center">
@@ -236,7 +307,7 @@ const FlightOrdersPage: React.FC = () => {
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Wszystkie</SelectItem>
-            {([1, 2, 3, 4] as FlightOrderStatus[]).map(s => (
+            {([1, 2, 3, 4, 5, 6, 7] as FlightOrderStatus[]).map(s => (
               <SelectItem key={s} value={String(s)}>{flightOrderStatusLabels[s]}</SelectItem>
             ))}
           </SelectContent>
@@ -248,7 +319,8 @@ const FlightOrdersPage: React.FC = () => {
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
-              <TableHead>Start</TableHead>
+              <TableHead>Planowany start</TableHead>
+              <TableHead>Planowane ladowanie</TableHead>
               <TableHead>Helikopter</TableHead>
               <TableHead>Pilot</TableHead>
               <TableHead>Status</TableHead>
@@ -259,20 +331,29 @@ const FlightOrdersPage: React.FC = () => {
             {filtered.map(o => (
               <TableRow key={o.id}>
                 <TableCell>{o.id}</TableCell>
-                <TableCell className="text-sm">{new Date(o.startTime).toLocaleString('pl-PL')}</TableCell>
+                <TableCell className="text-sm">{new Date(o.plannedStart).toLocaleString('pl-PL')}</TableCell>
+                <TableCell className="text-sm">{new Date(o.plannedEnd).toLocaleString('pl-PL')}</TableCell>
                 <TableCell>{getHelicopterName(o.helicopterId)}</TableCell>
                 <TableCell>{getPilotName(o.pilotId)}</TableCell>
                 <TableCell>
-                  <Select value={String(o.status)} onValueChange={v => updateMut.mutate({ id: o.id, status: Number(v) as FlightOrderStatus })}>
-                    <SelectTrigger className="w-32 h-8 text-xs">
+                  {(() => {
+                    const statusOptions = getAllowedStatusOptions(o.status, user?.role);
+                    return (
+                  <Select
+                    value={String(o.status)}
+                    onValueChange={v => handleInlineStatusChange(o, Number(v) as FlightOrderStatus)}
+                  >
+                    <SelectTrigger className="w-40 h-8 text-xs" disabled={statusOptions.length <= 1}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {([1, 2, 3, 4] as FlightOrderStatus[]).map(s => (
+                      {statusOptions.map(s => (
                         <SelectItem key={s} value={String(s)}>{flightOrderStatusLabels[s]}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => { setViewing(o); setDetailOpen(true); }}><Eye className="h-4 w-4" /></Button>
@@ -289,7 +370,16 @@ const FlightOrdersPage: React.FC = () => {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? 'Edytuj zlecenie' : 'Nowe zlecenie'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input type="datetime-local" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} required />
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="datetime-local" value={form.plannedStart} onChange={e => setForm(f => ({ ...f, plannedStart: e.target.value }))} required />
+              <Input type="datetime-local" value={form.plannedEnd} onChange={e => setForm(f => ({ ...f, plannedEnd: e.target.value }))} required />
+            </div>
+            {editing && (
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="datetime-local" value={form.actualStart} onChange={e => setForm(f => ({ ...f, actualStart: e.target.value }))} />
+                <Input type="datetime-local" value={form.actualEnd} onChange={e => setForm(f => ({ ...f, actualEnd: e.target.value }))} />
+              </div>
+            )}
 
             <div>
               <label className="text-sm font-medium text-foreground">Helikopter</label>
@@ -303,17 +393,22 @@ const FlightOrdersPage: React.FC = () => {
               </Select>
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-foreground">Pilot</label>
-              <Select value={form.pilotId} onValueChange={v => setForm(f => ({ ...f, pilotId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Wybierz pilota" /></SelectTrigger>
-                <SelectContent>
-                  {crew.filter(c => c.role === 'PILOT').map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {editing && (
+              <div>
+                <label className="text-sm font-medium text-foreground">Pilot</label>
+                <Select value={form.pilotId} onValueChange={v => setForm(f => ({ ...f, pilotId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Wybierz pilota" /></SelectTrigger>
+                  <SelectContent>
+                    {crew.filter(c => c.role === 'PILOT').map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {!editing && (
+              <p className="text-xs text-muted-foreground">Pilot jest uzupełniany automatycznie na podstawie zalogowanego użytkownika.</p>
+            )}
 
             <div>
               <label className="text-sm font-medium text-foreground">Załoga</label>
@@ -354,7 +449,10 @@ const FlightOrdersPage: React.FC = () => {
             <div>
               <label className="text-sm font-medium text-foreground">Operacje</label>
               <div className="flex flex-wrap gap-2 mt-1">
-                {operations.map(o => (
+                {operations
+                  .filter(o => o.status === 3 || form.operationIds.includes(o.id))
+                  .sort((a, b) => (a.plannedDateFrom || '9999-99-99').localeCompare(b.plannedDateFrom || '9999-99-99'))
+                  .map(o => (
                   <Badge key={o.id} className={`cursor-pointer ${form.operationIds.includes(o.id) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`} onClick={() => toggleMulti('operationIds', o.id)}>
                     {o.projectCode}
                   </Badge>
@@ -434,7 +532,8 @@ const FlightOrdersPage: React.FC = () => {
           {viewing && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="text-muted-foreground">Start:</span> {new Date(viewing.startTime).toLocaleString('pl-PL')}</div>
+                <div><span className="text-muted-foreground">Planowany start:</span> {new Date(viewing.plannedStart).toLocaleString('pl-PL')}</div>
+                <div><span className="text-muted-foreground">Planowane ladowanie:</span> {new Date(viewing.plannedEnd).toLocaleString('pl-PL')}</div>
                 <div><span className="text-muted-foreground">Helikopter:</span> {getHelicopterName(viewing.helicopterId)}</div>
                 <div><span className="text-muted-foreground">Pilot:</span> {getPilotName(viewing.pilotId)}</div>
                 <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{flightOrderStatusLabels[viewing.status]}</Badge></div>
