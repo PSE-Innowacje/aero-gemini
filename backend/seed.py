@@ -43,7 +43,13 @@ def main() -> None:
     from aero.core.database import Base, SessionLocal, engine  # noqa: WPS433
     from aero.core.security import hash_password  # noqa: WPS433
     from aero.models.crew_member import CrewMember  # noqa: WPS433
-    from aero.models.enums import CrewRole, ResourceStatus, UserRole, WorkflowStatus  # noqa: WPS433
+    from aero.models.enums import (  # noqa: WPS433
+        CrewRole,
+        FlightOrderStatus,
+        ResourceStatus,
+        UserRole,
+        WorkflowStatus,
+    )
     from aero.models.flight_order import FlightOrder  # noqa: WPS433
     from aero.models.helicopter import Helicopter  # noqa: WPS433
     from aero.models.landing_site import LandingSite  # noqa: WPS433
@@ -151,7 +157,7 @@ def main() -> None:
             {
                 "first_name": "Tom",
                 "last_name": "Pilot",
-                "email": "pilot@example.com",
+                "email": "pilot-user@example.com",
                 "weight": 82,
                 "role": CrewRole.PILOT,
                 "pilot_license_number": "LIC-1001",
@@ -255,7 +261,7 @@ def main() -> None:
                         [20.5000, 52.3500],
                     ],
                 },
-                "status": WorkflowStatus.DRAFT,
+                "status": WorkflowStatus.APPROVED,
                 "contacts": ["contact@example.com"],
             },
         ]
@@ -358,14 +364,14 @@ def main() -> None:
             {
                 "planned_start": dt_in_days(1, 8),
                 "planned_end": dt_in_days(1, 12),
-                "pilot_email": "pilot@example.com",
+                "pilot_email": "pilot-user@example.com",
                 "helicopter_reg": "SP-HELI1",
                 "crew_emails": ["observer@example.com"],
                 "start_site_name": "Warszawa",
                 "end_site_name": "Poznań",
                 "estimated_distance": 100.0,
                 "operation_codes": ["PRJ-001"],
-                "status": WorkflowStatus.DRAFT,
+                "status": FlightOrderStatus.NEW,
             },
         ]
         if is_full_profile:
@@ -379,8 +385,8 @@ def main() -> None:
                     "start_site_name": "Kraków",
                     "end_site_name": "Gdańsk",
                     "estimated_distance": 150.0,
-                    "operation_codes": ["PRJ-002", "PRJ-003"],
-                    "status": WorkflowStatus.APPROVED,
+                    "operation_codes": ["PRJ-003"],
+                    "status": FlightOrderStatus.APPROVED,
                 }
             )
         db.execute(text("UPDATE crew_members SET role = 'OBSERVER' WHERE role = 'CREW'"))
@@ -392,7 +398,9 @@ def main() -> None:
             end_site = sites_by_name[order_data["end_site_name"]]
             crew_members = [crew_by_email[email] for email in order_data["crew_emails"]]
             planned_operations = [operations_by_code[code] for code in order_data["operation_codes"]]
-            crew_weight = int(sum(member.weight for member in crew_members))
+            unique_member_weights = {member.id: member.weight for member in crew_members}
+            unique_member_weights[pilot.id] = pilot.weight
+            crew_weight = int(sum(unique_member_weights.values()))
             existing = db.scalar(
                 select(FlightOrder).where(
                     FlightOrder.pilot_id == pilot.id,
@@ -427,6 +435,9 @@ def main() -> None:
                 existing.estimated_distance = order_data["estimated_distance"]
                 existing.crew_members = crew_members
                 existing.planned_operations = planned_operations
+            for operation in planned_operations:
+                if operation.status == WorkflowStatus.APPROVED:
+                    operation.status = WorkflowStatus.SCHEDULED
 
         db.commit()
         print(f"Seed data inserted (idempotent). Profile: {seed_profile}.")
