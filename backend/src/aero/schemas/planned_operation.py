@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import EmailStr, Field, computed_field, field_validator, model_validator
+from pydantic import ConfigDict, EmailStr, Field, computed_field, field_validator, model_validator
 
 from aero.models.enums import WorkflowStatus
 from aero.schemas.common import ORMModel
@@ -41,6 +41,8 @@ class PlannedOperationHistoryEntry(ORMModel):
 
 
 class PlannedOperationCreate(ORMModel):
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
     project_code: str = Field(min_length=1, max_length=30)
     short_description: str = Field(min_length=1, max_length=100)
     route_geometry: RouteGeometry | None = None

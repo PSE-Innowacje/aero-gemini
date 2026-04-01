@@ -78,6 +78,12 @@ def _to_read(operation: PlannedOperation, db: Session) -> PlannedOperationRead:
 
 
 def _create_operation_from_payload(payload: PlannedOperationCreate, db: Session, user: User) -> PlannedOperationRead:
+    if user.role == UserRole.PLANNER and (payload.planned_date_from is not None or payload.planned_date_to is not None):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Planner cannot edit fields: planned_date_from, planned_date_to",
+        )
+
     repo = BaseRepository(db, PlannedOperation)
     data = payload.model_dump(exclude={"route_geometry", "kml_content"}, exclude_none=True)
     route_data = normalize_route(
