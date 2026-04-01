@@ -12,13 +12,13 @@ class CrewMemberBase(ORMModel):
     email: EmailStr
     weight: int = Field(ge=30, le=200)
     role: CrewRole
-    pilot_license_number: str | None = None
+    pilot_license_number: str | None = Field(default=None, max_length=30)
     license_valid_until: date | None = None
     training_valid_until: date
 
     @model_validator(mode="after")
     def validate_pilot_fields(self) -> "CrewMemberBase":
-        if self.role == CrewRole.PILOT and (not self.pilot_license_number or not self.license_valid_until):
+        if self.role == CrewRole.PILOT and (not self.pilot_license_number or not self.pilot_license_number.strip() or not self.license_valid_until):
             raise ValueError("pilot license number and validity are required for PILOT role")
         return self
 
@@ -33,7 +33,7 @@ class CrewMemberUpdate(ORMModel):
     email: EmailStr | None = None
     weight: int | None = Field(default=None, ge=30, le=200)
     role: CrewRole | None = None
-    pilot_license_number: str | None = None
+    pilot_license_number: str | None = Field(default=None, max_length=30)
     license_valid_until: date | None = None
     training_valid_until: date | None = None
 

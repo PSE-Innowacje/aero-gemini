@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from loguru import logger
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from aero.api.deps import require_roles
@@ -56,6 +57,22 @@ def update_crew_member(
             "crew_member_update_not_found"
         )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Crew member not found")
-    result = CrewMemberRead.model_validate(repo.update(model, payload.model_dump(exclude_unset=True)))
+    payload_data = payload.model_dump(exclude_unset=True)
+    merged_data = {
+        "first_name": model.first_name,
+        "last_name": model.last_name,
+        "email": model.email,
+        "weight": model.weight,
+        "role": model.role,
+        "pilot_license_number": model.pilot_license_number,
+        "license_valid_until": model.license_valid_until,
+        "training_valid_until": model.training_valid_until,
+    }
+    merged_data.update(payload_data)
+    try:
+        CrewMemberCreate.model_validate(merged_data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    result = CrewMemberRead.model_validate(repo.update(model, payload_data))
     logger.bind(event="crew_member_api", action="update", crew_member_id=result.id).info("crew_member_update_completed")
     return result

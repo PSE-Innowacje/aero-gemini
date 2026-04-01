@@ -19,11 +19,20 @@ const CrewPage: React.FC = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [editing, setEditing] = useState<CrewMember | null>(null);
   const [previewing, setPreviewing] = useState<CrewMember | null>(null);
-  const [form, setForm] = useState({ email: '', name: '', role: 'PILOT' as CrewRole, licenseExpiry: '', weight: 0 });
+  const [form, setForm] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    role: 'PILOT' as CrewRole,
+    pilotLicenseNumber: '',
+    licenseExpiry: '',
+    weight: 0,
+  });
   const [roleFilter, setRoleFilter] = useState<'ALL' | CrewRole>('ALL');
   const [validityFilter, setValidityFilter] = useState<'ALL' | 'VALID' | 'INVALID'>('ALL');
   const [sortKey, setSortKey] = useState<'name' | 'weight'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const isPilotLicenseMissing = form.role === 'PILOT' && form.pilotLicenseNumber.trim().length === 0;
 
   const createMut = useMutation({
     mutationFn: (d: Omit<CrewMember, 'id'>) => createCrewMember(d),
@@ -36,14 +45,55 @@ const CrewPage: React.FC = () => {
     onError: (error: Error) => { toast({ title: 'Błąd aktualizacji', description: error.message, variant: 'destructive' }); },
   });
 
-  const openCreate = () => { setEditing(null); setForm({ email: '', name: '', role: 'PILOT', licenseExpiry: '', weight: 0 }); setOpen(true); };
-  const openEdit = (c: CrewMember) => { setEditing(c); setForm({ email: c.email, name: c.name, role: c.role, licenseExpiry: c.licenseExpiry, weight: c.weight }); setOpen(true); };
+  const splitName = (fullName: string) => {
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return { firstName: '', lastName: '' };
+    if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+    return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+  };
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ email: '', firstName: '', lastName: '', role: 'PILOT', pilotLicenseNumber: '', licenseExpiry: '', weight: 0 });
+    setOpen(true);
+  };
+  const openEdit = (c: CrewMember) => {
+    const { firstName, lastName } = splitName(c.name);
+    setEditing(c);
+    setForm({
+      email: c.email,
+      firstName,
+      lastName,
+      role: c.role,
+      pilotLicenseNumber: c.pilotLicenseNumber ?? '',
+      licenseExpiry: c.licenseExpiry,
+      weight: c.weight,
+    });
+    setOpen(true);
+  };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) updateMut.mutate({ id: editing.id, ...form });
+    const fullName = `${form.firstName} ${form.lastName}`.trim().replace(/\s+/g, ' ');
+    const cleanedPilotLicenseNumber = form.pilotLicenseNumber.trim();
+    if (form.role === 'PILOT' && cleanedPilotLicenseNumber.length === 0) {
+      toast({
+        title: 'Błąd walidacji',
+        description: 'Nr licencji pilota jest wymagany dla roli Pilot.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const payload = {
+      email: form.email,
+      name: fullName,
+      role: form.role,
+      pilotLicenseNumber: form.role === 'PILOT' ? cleanedPilotLicenseNumber : null,
+      licenseExpiry: form.licenseExpiry,
+      weight: form.weight,
+    };
+    if (editing) updateMut.mutate({ id: editing.id, ...payload });
     else {
       createMut.mutate({
-        ...form,
+        ...payload,
         pilotLicenseNumber: null,
         licenseValidUntil: form.role === 'PILOT' ? form.licenseExpiry : null,
         trainingValidUntil: form.licenseExpiry,
@@ -206,15 +256,27 @@ const CrewPage: React.FC = () => {
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? 'Edytuj członka załogi' : 'Nowy członek załogi'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="crew-name">Imię i nazwisko</Label>
-              <Input
-                id="crew-name"
-                placeholder="Imię i nazwisko"
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                required
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="crew-first-name">Imię</Label>
+                <Input
+                  id="crew-first-name"
+                  placeholder="Imię"
+                  value={form.firstName}
+                  onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="crew-last-name">Nazwisko</Label>
+                <Input
+                  id="crew-last-name"
+                  placeholder="Nazwisko"
+                  value={form.lastName}
+                  onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
+                  required
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="crew-email">Adres e-mail</Label>
@@ -229,7 +291,7 @@ const CrewPage: React.FC = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="crew-role">Rola w załodze</Label>
-              <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as CrewRole }))}>
+              <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v as CrewRole, pilotLicenseNumber: v === 'PILOT' ? f.pilotLicenseNumber : '' }))}>
                 <SelectTrigger id="crew-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PILOT">Pilot</SelectItem>
@@ -237,6 +299,26 @@ const CrewPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            {form.role === 'PILOT' && (
+              <div className="space-y-2">
+                <Label htmlFor="crew-pilot-license-number">Nr licencji pilota</Label>
+                <Input
+                  id="crew-pilot-license-number"
+                  type="text"
+                  maxLength={30}
+                  placeholder="Nr licencji pilota"
+                  value={form.pilotLicenseNumber}
+                  onChange={e => setForm(f => ({ ...f, pilotLicenseNumber: e.target.value }))}
+                  required
+                />
+                <p className={`text-xs ${isPilotLicenseMissing ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {form.pilotLicenseNumber.length}/30
+                </p>
+                {isPilotLicenseMissing && (
+                  <p className="text-xs text-destructive">To pole jest wymagane dla roli Pilot.</p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="crew-license-expiry">{form.role === 'PILOT' ? 'Ważność licencji do' : 'Ważność szkolenia do'}</Label>
               <Input
@@ -258,7 +340,7 @@ const CrewPage: React.FC = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full">{editing ? 'Zapisz' : 'Dodaj'}</Button>
+            <Button type="submit" className="w-full" disabled={isPilotLicenseMissing}>{editing ? 'Zapisz' : 'Dodaj'}</Button>
           </form>
         </DialogContent>
       </Dialog>

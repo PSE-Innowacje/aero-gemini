@@ -368,7 +368,7 @@ export const createCrewMember = async (data: Omit<CrewMember, 'id'>): Promise<Cr
     email: data.email,
     weight: data.weight,
     role: data.role,
-    pilot_license_number: data.role === 'PILOT' ? 'TEMP-LIC' : null,
+    pilot_license_number: data.role === 'PILOT' ? data.pilotLicenseNumber : null,
     license_valid_until: data.role === 'PILOT' ? data.licenseExpiry : null,
     training_valid_until: data.licenseExpiry,
   };
@@ -384,6 +384,7 @@ export const updateCrewMember = async (id: string, data: Partial<CrewMember>): P
   if (data.email !== undefined) payload.email = data.email;
   if (data.weight !== undefined) payload.weight = data.weight;
   if (data.role !== undefined) payload.role = data.role;
+  if (data.pilotLicenseNumber !== undefined) payload.pilot_license_number = data.pilotLicenseNumber;
   if (data.licenseExpiry !== undefined) {
     payload.license_valid_until = data.licenseExpiry;
     payload.training_valid_until = data.licenseExpiry;

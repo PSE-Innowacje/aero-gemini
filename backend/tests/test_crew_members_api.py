@@ -63,6 +63,19 @@ def test_post_crew_member_validation_error_for_pilot_without_license(client, pla
     assert response.status_code == 422
 
 
+def test_post_crew_member_validation_error_for_pilot_license_too_long(client, planner_token, authz) -> None:
+    response = client.post(
+        "/api/crew-members",
+        headers=authz(planner_token),
+        json=_crew_member_payload(
+            "pilot.license.too.long@example.com",
+            pilot_license_number="L" * 31,
+        ),
+    )
+
+    assert response.status_code == 422
+
+
 def test_get_crew_members_success_with_sorting(client, planner_token, authz) -> None:
     first = _crew_member_payload(
         "zulu.observer@example.com",
@@ -140,6 +153,47 @@ def test_patch_crew_member_validation_error_for_invalid_weight(client, planner_t
         f"/api/crew-members/{crew_member_id}",
         headers=authz(planner_token),
         json={"weight": 10},
+    )
+
+    assert response.status_code == 422
+
+
+def test_patch_crew_member_validation_error_when_switching_to_pilot_without_license(client, planner_token, authz) -> None:
+    created = client.post(
+        "/api/crew-members",
+        headers=authz(planner_token),
+        json=_crew_member_payload(
+            "patch.switch.pilot@example.com",
+            role="OBSERVER",
+            pilot_license_number=None,
+            license_valid_until=None,
+        ),
+    )
+    assert created.status_code == 200
+    crew_member_id = created.json()["id"]
+
+    response = client.patch(
+        f"/api/crew-members/{crew_member_id}",
+        headers=authz(planner_token),
+        json={"role": "PILOT"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_patch_crew_member_validation_error_for_pilot_license_too_long(client, planner_token, authz) -> None:
+    created = client.post(
+        "/api/crew-members",
+        headers=authz(planner_token),
+        json=_crew_member_payload("patch.license.length@example.com"),
+    )
+    assert created.status_code == 200
+    crew_member_id = created.json()["id"]
+
+    response = client.patch(
+        f"/api/crew-members/{crew_member_id}",
+        headers=authz(planner_token),
+        json={"pilot_license_number": "L" * 31},
     )
 
     assert response.status_code == 422
