@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOperations, createOperationFromKml, updateOperation } from '@/api/api';
-import type { PlannedOperation, OperationStatus } from '@/types';
+import type { PlannedOperation, OperationStatus, Role } from '@/types';
 import { operationStatusLabels } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,32 @@ const statusColors: Record<OperationStatus, string> = {
 const allStatuses: OperationStatus[] = [1, 2, 3, 4, 5, 6, 7];
 const plannerEditableStatuses: OperationStatus[] = [1, 2, 3, 4, 5];
 const plannerResignationStatuses: OperationStatus[] = [1, 3, 4];
+const workflowTransitions: Partial<Record<OperationStatus, OperationStatus[]>> = {
+  1: [2, 3],
+  3: [2, 4],
+  4: [3, 5, 6, 2],
+  2: [1],
+};
+
+const getAllowedStatusOptions = (
+  currentStatus: OperationStatus,
+  role: Role | undefined
+): OperationStatus[] => {
+  if (!role) return [currentStatus];
+  if (role === 'ADMIN' || role === 'SUPERVISOR') {
+    return [currentStatus, ...(workflowTransitions[currentStatus] ?? [])];
+  }
+  if (role === 'PLANNER') {
+    if (currentStatus === 1 || currentStatus === 3 || currentStatus === 4) return [currentStatus, 7];
+    if (currentStatus === 7) return [7, 1];
+    return [currentStatus];
+  }
+  if (role === 'PILOT') {
+    if (currentStatus === 4) return [4, 3, 5, 6];
+    return [currentStatus];
+  }
+  return [currentStatus];
+};
 
 const activityOptions = [
   { value: 'ogledziny_wizualne', label: 'Oględziny wizualne' },
@@ -385,7 +411,31 @@ const OperationsPage: React.FC = () => {
                 <TableCell className="max-w-[280px] truncate">{operation.shortDescription}</TableCell>
                 <TableCell>{operation.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</TableCell>
                 <TableCell>{operation.distanceKm}</TableCell>
-                <TableCell><Badge className={statusColors[operation.status]}>{operationStatusLabels[operation.status]}</Badge></TableCell>
+                <TableCell>
+                  {(() => {
+                    const statusOptions = getAllowedStatusOptions(operation.status, user?.role);
+                    if (statusOptions.length <= 1) {
+                      return <Badge className={statusColors[operation.status]}>{operationStatusLabels[operation.status]}</Badge>;
+                    }
+                    return (
+                      <Select
+                        value={String(operation.status)}
+                        onValueChange={(value) => requestStatusChange(operation.id, Number(value) as OperationStatus)}
+                      >
+                        <SelectTrigger className="h-8 w-48 justify-start text-xs [&>svg]:ml-auto">
+                          <span className="truncate text-left">{operationStatusLabels[operation.status]}</span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.map((statusValue) => (
+                            <SelectItem key={statusValue} value={String(statusValue)}>
+                              {operationStatusLabels[statusValue]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
+                </TableCell>
                 <TableCell className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => { setViewing(operation); setDetailOpen(true); }}><Eye className="h-4 w-4" /></Button>
                   {canEditOperation(operation) && (
