@@ -409,18 +409,17 @@ const FlightOrdersPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-foreground">Daty planowane</h3>
-              <p className="text-xs text-muted-foreground">Wypelnij pare dat: start i ladowanie.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-foreground">Data i godzina planowanego startu</label>
                 <Input type="datetime-local" value={form.plannedStart} onChange={e => setForm(f => ({ ...f, plannedStart: e.target.value }))} required />
-                <p className="text-xs text-muted-foreground">Pole wymagane. Uzywane do planowania lotu.</p>
+                <p className="text-xs text-muted-foreground">Wymagane.</p>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-foreground">Data i godzina planowanego ladowania</label>
                 <Input type="datetime-local" value={form.plannedEnd} onChange={e => setForm(f => ({ ...f, plannedEnd: e.target.value }))} required />
-                <p className="text-xs text-muted-foreground">Pole wymagane. Koniec planowanego lotu.</p>
+                <p className="text-xs text-muted-foreground">Wymagane.</p>
               </div>
             </div>
             {editing && (
@@ -498,7 +497,7 @@ const FlightOrdersPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="mt-1 text-xs text-muted-foreground">Miejsce rozpoczecia lotu.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Wymagane.</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Lądowisko docelowe</label>
@@ -510,7 +509,7 @@ const FlightOrdersPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="mt-1 text-xs text-muted-foreground">Miejsce zakonczenia lotu.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Wymagane.</p>
               </div>
             </div>
 
@@ -531,6 +530,10 @@ const FlightOrdersPage: React.FC = () => {
 
             <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
               <p><span className="text-muted-foreground">Waga załogi:</span> <strong>{crewWeight} kg</strong></p>
+              <p>
+                <span className="text-muted-foreground">Wskaźnik referencyjny:</span>{' '}
+                {helicopter ? `244 / ${helicopter.maxWeight}` : '244 / {udźwig helikoptera}'}
+              </p>
               {helicopter && <p><span className="text-muted-foreground">Maks. zasięg:</span> {helicopter.maxRange} km</p>}
               {!editing && (
                 <p>

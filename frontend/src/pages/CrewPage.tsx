@@ -65,6 +65,10 @@ const CrewPage: React.FC = () => {
   };
   const getValidityLabel = (date?: string | null) => (isExpired(date) ? 'Nieważna' : 'Ważna');
   const roleLabels: Record<CrewRole, string> = { PILOT: 'Pilot', OBSERVER: 'Obserwator' };
+  const resetFilters = () => {
+    setRoleFilter('ALL');
+    setValidityFilter('ALL');
+  };
 
   const toggleSort = (key: 'name' | 'weight') => {
     if (sortKey !== key) {
@@ -122,10 +126,14 @@ const CrewPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Załoga</h1>
-        <div className="flex items-center gap-2">
+        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
+      </div>
+      <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+        <div className="space-y-1">
+          <Label htmlFor="crew-role-filter">Rola</Label>
           <Select value={roleFilter} onValueChange={v => setRoleFilter(v as 'ALL' | CrewRole)}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Filtruj po roli" />
+            <SelectTrigger id="crew-role-filter">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Wszystkie role</SelectItem>
@@ -133,9 +141,12 @@ const CrewPage: React.FC = () => {
               <SelectItem value="OBSERVER">Obserwator</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="crew-validity-filter">Ważność uprawnień</Label>
           <Select value={validityFilter} onValueChange={v => setValidityFilter(v as 'ALL' | 'VALID' | 'INVALID')}>
-            <SelectTrigger className="w-[260px]">
-              <SelectValue placeholder="Ważność uprawnień" />
+            <SelectTrigger id="crew-validity-filter">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Wszystkie uprawnienia</SelectItem>
@@ -143,7 +154,9 @@ const CrewPage: React.FC = () => {
               <SelectItem value="INVALID">Nieważne uprawnienia</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
+        </div>
+        <div className="md:col-span-2 flex items-end justify-between gap-2 md:justify-end">
+          <Button type="button" variant="outline" onClick={resetFilters}>Wyczyść filtry</Button>
         </div>
       </div>
       <div className="border rounded-lg">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createUser, deleteUser, fetchUsers } from '@/api/api';
 import type { Role } from '@/types';
@@ -21,6 +21,7 @@ const UsersPage: React.FC = () => {
   const currentUserId = useAuthStore((state) => state.user?.id ?? null);
   const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
   const [open, setOpen] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<'ALL' | Role>('ALL');
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -32,6 +33,10 @@ const UsersPage: React.FC = () => {
   const isLastNameTooLong = form.lastName.length > USER_FIELD_MAX_LENGTH;
   const isEmailTooLong = form.email.length > USER_FIELD_MAX_LENGTH;
   const isUserLengthInvalid = isFirstNameTooLong || isLastNameTooLong || isEmailTooLong;
+  const filteredUsers = useMemo(
+    () => users.filter((user) => roleFilter === 'ALL' || user.role === roleFilter),
+    [roleFilter, users]
+  );
 
   const createMut = useMutation({
     mutationFn: createUser,
@@ -92,6 +97,23 @@ const UsersPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-foreground">Użytkownicy</h1>
         <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
       </div>
+      <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+        <div className="space-y-1">
+          <Label htmlFor="users-role-filter">Rola</Label>
+          <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as 'ALL' | Role)}>
+            <SelectTrigger id="users-role-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Wszystkie role</SelectItem>
+              <SelectItem value="ADMIN">{getUserRoleLabel('ADMIN')}</SelectItem>
+              <SelectItem value="SUPERVISOR">{getUserRoleLabel('SUPERVISOR')}</SelectItem>
+              <SelectItem value="PLANNER">{getUserRoleLabel('PLANNER')}</SelectItem>
+              <SelectItem value="PILOT">{getUserRoleLabel('PILOT')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -103,7 +125,7 @@ const UsersPage: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map(u => (
+            {filteredUsers.map(u => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell>{u.email}</TableCell>
