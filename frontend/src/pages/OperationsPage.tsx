@@ -84,10 +84,29 @@ const toActivityLabel = (value: string): string => {
 
 const toHistoryActionLabel = (value: string): string => {
   const normalized = value.trim().toLowerCase();
-  if (normalized === 'update') return 'edycja';
-  if (normalized === 'create') return 'utworzenie';
-  if (normalized === 'status_change') return 'zmiana statusu';
+  if (normalized === 'update') return 'Modyfikacja';
+  if (normalized === 'create') return 'Wprowadzenie';
+  if (normalized === 'status_change') return 'Zmiana statusu';
   return value;
+};
+
+const parseStatusFromSnapshot = (snapshot: Record<string, unknown> | null | undefined): OperationStatus | null => {
+  const rawStatus = snapshot?.status;
+  const numericStatus = typeof rawStatus === 'number'
+    ? rawStatus
+    : typeof rawStatus === 'string'
+      ? Number(rawStatus)
+      : NaN;
+  if (!Number.isInteger(numericStatus) || numericStatus < 1 || numericStatus > 7) return null;
+  return numericStatus as OperationStatus;
+};
+
+const toHistoryStatusChangeLabel = (entry: PlannedOperation['history'][number]): string | null => {
+  if (entry.action.trim().toLowerCase() !== 'status_change') return null;
+  const fromStatus = parseStatusFromSnapshot(entry.beforeSnapshot);
+  const toStatus = parseStatusFromSnapshot(entry.afterSnapshot);
+  if (!fromStatus || !toStatus) return null;
+  return `${operationStatusLabels[fromStatus]} -> ${operationStatusLabels[toStatus]}`;
 };
 
 type OperationForm = {
@@ -548,9 +567,9 @@ const OperationsPage: React.FC = () => {
                 <div><span className="text-muted-foreground">Długość trasy (km):</span> {viewing.distanceKm}</div>
               </div>
 
-              <div className="text-sm">
-                <p><span className="text-muted-foreground">Kontakty:</span> {viewing.contacts.join(', ') || '-'}</p>
-                <p><span className="text-muted-foreground">Powiazane zlecenia:</span> {viewing.linkedFlightOrderIds.join(', ') || '-'}</p>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="text-muted-foreground">Osoby kontaktowe:</span> {viewing.contacts.join(', ') || '-'}</div>
+                <div><span className="text-muted-foreground">Powiązane zlecenia:</span> {viewing.linkedFlightOrderIds.join(', ') || '-'}</div>
               </div>
 
               {(isSupervisor && viewing.status === 1) && (
@@ -603,6 +622,9 @@ const OperationsPage: React.FC = () => {
                   viewing.history.slice().reverse().map((entry, index) => (
                     <div key={`${entry.changedAt}-${index}`} className="rounded-md border p-2 text-xs">
                       <p className="font-medium">{toHistoryActionLabel(entry.action)}</p>
+                      {toHistoryStatusChangeLabel(entry) && (
+                        <p className="text-muted-foreground">{toHistoryStatusChangeLabel(entry)}</p>
+                      )}
                       <p className="text-muted-foreground">
                         {entry.actorEmail} - {new Date(entry.changedAt).toLocaleString('pl-PL')}
                       </p>
