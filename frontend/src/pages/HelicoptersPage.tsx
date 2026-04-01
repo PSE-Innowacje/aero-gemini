@@ -35,7 +35,7 @@ const HelicoptersPage: React.FC = () => {
   const [minRangeFilter, setMinRangeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [minCrewFilter, setMinCrewFilter] = useState<string>('');
-  const [sortKey, setSortKey] = useState<HelicopterSortKey>('registration');
+  const [sortKey, setSortKey] = useState<HelicopterSortKey>('status');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Helicopter | null>(null);
@@ -183,6 +183,9 @@ const HelicoptersPage: React.FC = () => {
           break;
         case 'status':
           result = a.status.localeCompare(b.status, 'pl', { sensitivity: 'base' });
+          if (result === 0) {
+            result = a.registration.localeCompare(b.registration, 'pl', { sensitivity: 'base' });
+          }
           break;
         default:
           result = 0;
