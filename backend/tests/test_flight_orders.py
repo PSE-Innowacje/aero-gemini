@@ -164,6 +164,109 @@ def test_optimize_route_returns_order_direction_and_total_distance(
     assert body["total_distance_km"] > 0
 
 
+def test_optimize_route_is_stable_for_same_operations_with_different_input_order(
+    client, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    op1_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-OPT-STABLE-1",
+        [[21.02, 52.10], [21.03, 52.12], [21.05, 52.13]],
+    )
+    op2_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-OPT-STABLE-2",
+        [[21.07, 52.15], [21.08, 52.16], [21.10, 52.17]],
+    )
+    op3_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-OPT-STABLE-3",
+        [[21.12, 52.18], [21.14, 52.19], [21.15, 52.20]],
+    )
+
+    payload_base = {
+        "start_site_id": ids["site_a_id"],
+        "end_site_id": ids["site_b_id"],
+    }
+    response_a = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={**payload_base, "planned_operation_ids": [op1_id, op2_id, op3_id]},
+    )
+    response_b = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={**payload_base, "planned_operation_ids": [op3_id, op1_id, op2_id]},
+    )
+
+    assert response_a.status_code == 200
+    assert response_b.status_code == 200
+
+    body_a = response_a.json()
+    body_b = response_b.json()
+    assert body_a["total_distance_km"] == body_b["total_distance_km"]
+
+    route_a = [
+        (item["planned_operation_id"], item["direction"])
+        for item in body_a["ordered_operations"]
+    ]
+    route_b = [
+        (item["planned_operation_id"], item["direction"])
+        for item in body_b["ordered_operations"]
+    ]
+    assert route_a == route_b
+    assert len(route_a) == 3
+    assert all(direction in {"forward", "reverse"} for _, direction in route_a)
+
+
+def test_optimize_route_uses_expected_directions_for_two_operations_between_start_and_end(
+    client, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    op1_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-OPP-SIDES-1",
+        # Defined opposite to natural travel direction from start to end.
+        [[21.07, 52.15], [21.03, 52.12]],
+    )
+    op2_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-OPP-SIDES-2",
+        [[21.08, 52.16], [21.12, 52.19]],
+    )
+
+    response = client.post(
+        "/api/flight-orders/optimize-route",
+        headers=authz(planner_token),
+        json={
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [op1_id, op2_id],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+
+    route = [
+        (item["planned_operation_id"], item["direction"])
+        for item in body["ordered_operations"]
+    ]
+    assert route == [
+        (op1_id, "reverse"),
+        (op2_id, "forward"),
+    ]
+
+
 def test_preview_route_returns_distance_range_and_blocking_info(
     client, planner_token, authz, operational_entities
 ) -> None:
@@ -200,6 +303,70 @@ def test_preview_route_returns_distance_range_and_blocking_info(
     assert isinstance(body["within_helicopter_range"], bool)
     assert "range_margin_km" in body
     assert body["blocking_reasons"] == []
+
+
+def test_preview_route_is_stable_for_same_operations_with_different_input_order(
+    client, planner_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    op1_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-STABLE-1",
+        [[21.02, 52.10], [21.03, 52.12], [21.05, 52.13]],
+    )
+    op2_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-STABLE-2",
+        [[21.07, 52.15], [21.08, 52.16], [21.10, 52.17]],
+    )
+    op3_id = _create_planned_operation(
+        client,
+        planner_token,
+        authz,
+        "PRJ-STABLE-3",
+        [[21.12, 52.18], [21.14, 52.19], [21.15, 52.20]],
+    )
+
+    payload_base = {
+        "start_site_id": ids["site_a_id"],
+        "end_site_id": ids["site_b_id"],
+        "helicopter_id": ids["helicopter_id"],
+        "strategy": "optimized",
+    }
+
+    response_a = client.post(
+        "/api/flight-orders/preview",
+        headers=authz(planner_token),
+        json={**payload_base, "planned_operation_ids": [op1_id, op2_id, op3_id]},
+    )
+    response_b = client.post(
+        "/api/flight-orders/preview",
+        headers=authz(planner_token),
+        json={**payload_base, "planned_operation_ids": [op3_id, op1_id, op2_id]},
+    )
+
+    assert response_a.status_code == 200
+    assert response_b.status_code == 200
+
+    body_a = response_a.json()
+    body_b = response_b.json()
+    assert body_a["total_distance_km"] == body_b["total_distance_km"]
+
+    route_a = [
+        (item["planned_operation_id"], item["direction"])
+        for item in body_a["ordered_operations"]
+    ]
+    route_b = [
+        (item["planned_operation_id"], item["direction"])
+        for item in body_b["ordered_operations"]
+    ]
+    assert route_a == route_b
+    assert len(route_a) == 3
+    assert all(direction in {"forward", "reverse"} for _, direction in route_a)
 
 
 def test_preview_route_blocks_when_distance_exceeds_helicopter_range(
