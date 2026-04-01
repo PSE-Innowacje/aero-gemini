@@ -19,6 +19,16 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, AlertTriangle, Trash2 } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
@@ -71,6 +81,7 @@ const FlightOrdersPage: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<FlightOrder | null>(null);
   const [viewing, setViewing] = useState<FlightOrder | null>(null);
+  const [pendingDeleteOrder, setPendingDeleteOrder] = useState<FlightOrder | null>(null);
   const [form, setForm] = useState({
     plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', helicopterId: '', pilotId: '', crewIds: [] as string[],
     landingSiteIds: [] as string[], operationIds: [] as string[], status: 1 as FlightOrderStatus,
@@ -378,7 +389,7 @@ const FlightOrdersPage: React.FC = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteMut.mutate(o.id)}
+                      onClick={() => setPendingDeleteOrder(o)}
                       disabled={deleteMut.isPending}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -396,14 +407,30 @@ const FlightOrdersPage: React.FC = () => {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? 'Edytuj zlecenie' : 'Nowe zlecenie'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              <Input type="datetime-local" value={form.plannedStart} onChange={e => setForm(f => ({ ...f, plannedStart: e.target.value }))} required />
-              <Input type="datetime-local" value={form.plannedEnd} onChange={e => setForm(f => ({ ...f, plannedEnd: e.target.value }))} required />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">Data i godzina planowanego startu</label>
+                <Input type="datetime-local" value={form.plannedStart} onChange={e => setForm(f => ({ ...f, plannedStart: e.target.value }))} required />
+                <p className="text-xs text-muted-foreground">Pole wymagane. Uzywane do planowania lotu.</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-foreground">Data i godzina planowanego ladowania</label>
+                <Input type="datetime-local" value={form.plannedEnd} onChange={e => setForm(f => ({ ...f, plannedEnd: e.target.value }))} required />
+                <p className="text-xs text-muted-foreground">Pole wymagane. Koniec planowanego lotu.</p>
+              </div>
             </div>
             {editing && (
-              <div className="grid grid-cols-2 gap-2">
-                <Input type="datetime-local" value={form.actualStart} onChange={e => setForm(f => ({ ...f, actualStart: e.target.value }))} />
-                <Input type="datetime-local" value={form.actualEnd} onChange={e => setForm(f => ({ ...f, actualEnd: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego startu</label>
+                  <Input type="datetime-local" value={form.actualStart} onChange={e => setForm(f => ({ ...f, actualStart: e.target.value }))} />
+                  <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego ladowania</label>
+                  <Input type="datetime-local" value={form.actualEnd} onChange={e => setForm(f => ({ ...f, actualEnd: e.target.value }))} />
+                  <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
+                </div>
               </div>
             )}
 
@@ -417,6 +444,7 @@ const FlightOrdersPage: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Dostepne sa tylko helikoptery ze statusem aktywny.</p>
             </div>
 
             {(editing || user?.role === 'ADMIN') && (
@@ -430,6 +458,7 @@ const FlightOrdersPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="mt-1 text-xs text-muted-foreground">Pilot musi miec role PILOT w slowniku zalogi.</p>
               </div>
             )}
             {!editing && user?.role !== 'ADMIN' && (
@@ -445,6 +474,7 @@ const FlightOrdersPage: React.FC = () => {
                   </Badge>
                 ))}
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">Opcjonalne. Waga zalogi liczona jest automatycznie (pilot + wybrane osoby).</p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -458,6 +488,7 @@ const FlightOrdersPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="mt-1 text-xs text-muted-foreground">Miejsce rozpoczecia lotu.</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Lądowisko docelowe</label>
@@ -469,6 +500,7 @@ const FlightOrdersPage: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="mt-1 text-xs text-muted-foreground">Miejsce zakonczenia lotu.</p>
               </div>
             </div>
 
@@ -484,6 +516,7 @@ const FlightOrdersPage: React.FC = () => {
                   </Badge>
                 ))}
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">Wymagane. Widoczne sa operacje o statusie 3, posortowane po planowanej dacie.</p>
             </div>
 
             <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
@@ -582,6 +615,34 @@ const FlightOrdersPage: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(pendingDeleteOrder)}
+        onOpenChange={(openValue) => {
+          if (!openValue) setPendingDeleteOrder(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Potwierdz usuniecie zlecenia</AlertDialogTitle>
+            <AlertDialogDescription>
+              Czy na pewno chcesz usunac zlecenie nr {pendingDeleteOrder?.id}? Tej operacji nie mozna cofnac.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingDeleteOrder) return;
+                deleteMut.mutate(pendingDeleteOrder.id);
+                setPendingDeleteOrder(null);
+              }}
+            >
+              Usun
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
