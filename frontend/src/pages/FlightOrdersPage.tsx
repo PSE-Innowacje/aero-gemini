@@ -33,7 +33,11 @@ import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, AlertTriangle, Trash2 } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
-import { buildFlightOrderPolylinePositions, buildFlightPreviewPolylinePositions } from '@/lib/flightOrderRoute';
+import {
+  buildFlightOrderPolylinePositions,
+  buildFlightPreviewPolylinePositions,
+  buildFlightPreviewRouteVisuals,
+} from '@/lib/flightOrderRoute';
 import { useAuthStore } from '@/store/authStore';
 
 const statusColors: Record<FlightOrderStatus, string> = {
@@ -245,13 +249,46 @@ const FlightOrdersPage: React.FC = () => {
 
   const formPreviewMarkers: MapMarker[] = useMemo(() => {
     if (!form.startSiteId || !form.endSiteId) return [];
-    return [form.startSiteId, form.endSiteId]
+    const siteMarkers = [form.startSiteId, form.endSiteId]
       .map((id) => sites.find((site) => site.id === id))
       .filter(Boolean)
-      .map((site) => ({ id: site!.id, lat: site!.latitude, lng: site!.longitude, popup: site!.name }));
-  }, [form.startSiteId, form.endSiteId, sites]);
+      .map((site) => ({
+        id: `site-${site!.id}`,
+        lat: site!.latitude,
+        lng: site!.longitude,
+        popup: site!.name,
+        markerType: 'site' as const,
+      }));
+    const routeVisuals = buildFlightPreviewRouteVisuals(
+      form.startSiteId,
+      form.endSiteId,
+      previewOperationIds,
+      sites,
+      operations
+    );
+    const operationMarkers = routeVisuals?.operationMarkers ?? [];
+    return [...siteMarkers, ...operationMarkers];
+  }, [form.startSiteId, form.endSiteId, previewOperationIds, sites, operations]);
 
   const formPreviewPolylines: MapPolyline[] = useMemo(() => {
+    const routeVisuals = buildFlightPreviewRouteVisuals(
+      form.startSiteId,
+      form.endSiteId,
+      previewOperationIds,
+      sites,
+      operations
+    );
+    if (routeVisuals) {
+      return [
+        ...routeVisuals.transitPolylines
+          .filter((positions) => positions.length >= 2)
+          .map((positions) => ({ positions, color: '#0f766e', weight: 4 })),
+        ...routeVisuals.operationPolylines
+          .filter((positions) => positions.length >= 2)
+          .map((positions) => ({ positions, color: '#f97316', weight: 5 })),
+      ];
+    }
+
     const positions = buildFlightPreviewPolylinePositions(
       form.startSiteId,
       form.endSiteId,
@@ -300,14 +337,40 @@ const FlightOrdersPage: React.FC = () => {
   // Map data for detail view
   const viewingMarkers: MapMarker[] = useMemo(() => {
     if (!viewing) return [];
-    return [viewing.startSiteId, viewing.endSiteId]
+    const siteMarkers = [viewing.startSiteId, viewing.endSiteId]
       .map(id => sites.find(s => s.id === id))
       .filter(Boolean)
-      .map(s => ({ id: s!.id, lat: s!.latitude, lng: s!.longitude, popup: s!.name }));
-  }, [viewing, sites]);
+      .map(s => ({ id: `site-${s!.id}`, lat: s!.latitude, lng: s!.longitude, popup: s!.name, markerType: 'site' as const }));
+    const routeVisuals = buildFlightPreviewRouteVisuals(
+      viewing.startSiteId,
+      viewing.endSiteId,
+      viewing.operationIds,
+      sites,
+      operations
+    );
+    const operationMarkers = routeVisuals?.operationMarkers ?? [];
+    return [...siteMarkers, ...operationMarkers];
+  }, [viewing, sites, operations]);
 
   const viewingPolylines: MapPolyline[] = useMemo(() => {
     if (!viewing) return [];
+    const routeVisuals = buildFlightPreviewRouteVisuals(
+      viewing.startSiteId,
+      viewing.endSiteId,
+      viewing.operationIds,
+      sites,
+      operations
+    );
+    if (routeVisuals) {
+      return [
+        ...routeVisuals.transitPolylines
+          .filter((positions) => positions.length >= 2)
+          .map((positions) => ({ positions, color: '#1e293b', weight: 3 })),
+        ...routeVisuals.operationPolylines
+          .filter((positions) => positions.length >= 2)
+          .map((positions) => ({ positions, color: '#f97316', weight: 5 })),
+      ];
+    }
     const positions = buildFlightOrderPolylinePositions(viewing, sites, operations);
     if (!positions || positions.length < 2) return [];
     return [{ positions }];

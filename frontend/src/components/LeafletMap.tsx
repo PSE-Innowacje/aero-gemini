@@ -15,6 +15,17 @@ const defaultIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+const operationIcon = new L.Icon({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [18, 30],
+  iconAnchor: [9, 30],
+  popupAnchor: [1, -26],
+  shadowSize: [30, 30],
+  className: 'leaflet-marker-operation',
+});
+
 const highlightIcon = new L.Icon({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -37,6 +48,7 @@ export interface MapMarker {
   lat: number;
   lng: number;
   popup?: string;
+  markerType?: 'default' | 'site' | 'operation';
 }
 
 export interface MapPolyline {
@@ -110,8 +122,9 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     markersRef.current.forEach(m => m.remove());
     markersRef.current = markers.map(m => {
       const isSelected = selectedMarkerId === m.id;
+      const markerIcon = m.markerType === 'operation' ? operationIcon : defaultIcon;
       const marker = L.marker([m.lat, m.lng], {
-        icon: isSelected ? highlightIcon : defaultIcon,
+        icon: isSelected ? highlightIcon : markerIcon,
         zIndexOffset: isSelected ? 1000 : 0,
       }).addTo(map);
       if (m.popup) marker.bindPopup(m.popup);
