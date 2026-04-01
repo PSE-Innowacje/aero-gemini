@@ -545,7 +545,7 @@ const OperationsPage: React.FC = () => {
                 <div><span className="text-muted-foreground">Proponowane daty:</span> {viewing.proposedDateFrom || '-'} - {viewing.proposedDateTo || '-'}</div>
                 <div><span className="text-muted-foreground">Planowane daty:</span> {viewing.plannedDateFrom || '-'} - {viewing.plannedDateTo || '-'}</div>
                 <div><span className="text-muted-foreground">Liczba punktow:</span> {viewing.pointsCount}</div>
-                <div><span className="text-muted-foreground">Liczba km trasy:</span> {viewing.distanceKm}</div>
+                <div><span className="text-muted-foreground">Długość trasy (km):</span> {viewing.distanceKm}</div>
               </div>
 
               <div className="text-sm">
