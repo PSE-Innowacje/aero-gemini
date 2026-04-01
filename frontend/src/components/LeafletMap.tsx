@@ -65,6 +65,7 @@ export interface MapPolyline {
 interface LeafletMapProps {
   center?: [number, number];
   zoom?: number;
+  bounds?: [[number, number], [number, number]];
   markers?: MapMarker[];
   polylines?: MapPolyline[];
   className?: string;
@@ -75,8 +76,9 @@ interface LeafletMapProps {
 }
 
 const LeafletMap: React.FC<LeafletMapProps> = ({
-  center = [50.06, 19.94],
-  zoom = 8,
+  center = [52.0, 19.0],
+  zoom = 7,
+  bounds,
   markers = [],
   polylines = [],
   className = 'h-[300px]',
@@ -94,6 +96,9 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current).setView(center, zoom);
+    if (bounds) {
+      map.fitBounds(bounds, { padding: [12, 12] });
+    }
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
@@ -117,8 +122,15 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
 
   // Update center
   useEffect(() => {
+    if (bounds) return;
     mapRef.current?.setView(center, mapRef.current.getZoom());
-  }, [center]);
+  }, [center, bounds]);
+
+  // Update bounds
+  useEffect(() => {
+    if (!bounds) return;
+    mapRef.current?.fitBounds(bounds, { padding: [12, 12] });
+  }, [bounds]);
 
   // Update markers
   useEffect(() => {

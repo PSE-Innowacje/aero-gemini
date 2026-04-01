@@ -126,6 +126,7 @@ const FlightOrdersPage: React.FC = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<FlightOrder | null>(null);
   const [viewing, setViewing] = useState<FlightOrder | null>(null);
+  const [handledFocusOrderId, setHandledFocusOrderId] = useState<string>('');
   const [pendingDeleteOrder, setPendingDeleteOrder] = useState<FlightOrder | null>(null);
   const [form, setForm] = useState({
     plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', helicopterId: '', pilotId: '', crewIds: [] as string[],
@@ -182,6 +183,16 @@ const FlightOrdersPage: React.FC = () => {
     }
     setStatusFilter('all');
   }, [searchParams]);
+
+  useEffect(() => {
+    const focusOrderId = searchParams.get('focusOrderId');
+    if (!focusOrderId || focusOrderId === handledFocusOrderId || orders.length === 0) return;
+    const order = orders.find((item) => item.id === focusOrderId);
+    if (!order) return;
+    setViewing(order);
+    setDetailOpen(true);
+    setHandledFocusOrderId(focusOrderId);
+  }, [searchParams, orders, handledFocusOrderId]);
 
   const filtered = useMemo(() => {
     if (statusFilter === 'all') return orders;

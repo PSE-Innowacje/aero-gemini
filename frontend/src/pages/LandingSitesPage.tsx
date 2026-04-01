@@ -16,7 +16,7 @@ const LandingSitesPage: React.FC = () => {
   const { data: sites = [], isLoading } = useQuery({ queryKey: ['landingSites'], queryFn: fetchLandingSites });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LandingSite | null>(null);
-  const [form, setForm] = useState({ name: '', latitude: 50.06, longitude: 19.94 });
+  const [form, setForm] = useState({ name: '', latitude: 52.0, longitude: 19.0 });
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -32,7 +32,7 @@ const LandingSitesPage: React.FC = () => {
     onError: (error: Error) => { toast({ title: 'Nie udało się zaktualizować lądowiska', description: error.message, variant: 'destructive' }); },
   });
 
-  const openCreate = () => { setEditing(null); setForm({ name: '', latitude: 50.06, longitude: 19.94 }); setOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ name: '', latitude: 52.0, longitude: 19.0 }); setOpen(true); };
   const openEdit = (s: LandingSite) => { setEditing(s); setForm({ name: s.name, latitude: s.latitude, longitude: s.longitude }); setOpen(true); };
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,21 +74,10 @@ const LandingSitesPage: React.FC = () => {
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-[calc(100vh-8.5rem)] flex-col gap-4 overflow-hidden">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Lądowiska</h1>
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
-      </div>
-
-      <div className="w-full">
-        <LeafletMap
-          center={[50.06, 19.94]}
-          zoom={8}
-          markers={siteMarkers}
-          onMarkerClick={handleMarkerClick}
-          selectedMarkerId={selectedSiteId}
-          className="h-[440px]"
-        />
       </div>
 
       <div className="space-y-2">
@@ -105,32 +94,44 @@ const LandingSitesPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full border rounded-lg">
-        <Table className="table-fixed">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[40%]">Nazwa</TableHead>
-              <TableHead className="w-[25%] text-right">Szerokość geograficzna</TableHead>
-              <TableHead className="w-[25%] text-right">Długość geograficzna</TableHead>
-              <TableHead className="w-16" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredSites.map(s => (
-              <TableRow
-                key={s.id}
-                ref={el => { rowRefs.current[s.id] = el; }}
-                className={`cursor-pointer transition-colors ${selectedSiteId === s.id ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-muted/50'}`}
-                onClick={() => handleRowClick(s.id)}
-              >
-                <TableCell className="font-medium truncate" title={s.name}>{s.name}</TableCell>
-                <TableCell className="text-right font-mono">{s.latitude.toFixed(4)}</TableCell>
-                <TableCell className="text-right font-mono">{s.longitude.toFixed(4)}</TableCell>
-                <TableCell><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openEdit(s); }}><Pencil className="h-4 w-4" /></Button></TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="min-h-0 overflow-hidden rounded-lg border">
+          <div className="h-full overflow-auto">
+            <Table className="table-fixed">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40%]">Nazwa</TableHead>
+                  <TableHead className="w-[25%] text-right">Szerokość geograficzna</TableHead>
+                  <TableHead className="w-[25%] text-right">Długość geograficzna</TableHead>
+                  <TableHead className="w-16" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSites.map(s => (
+                  <TableRow
+                    key={s.id}
+                    ref={el => { rowRefs.current[s.id] = el; }}
+                    className={`cursor-pointer transition-colors ${selectedSiteId === s.id ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-muted/50'}`}
+                    onClick={() => handleRowClick(s.id)}
+                  >
+                    <TableCell className="font-medium truncate" title={s.name}>{s.name}</TableCell>
+                    <TableCell className="text-right font-mono">{s.latitude.toFixed(4)}</TableCell>
+                    <TableCell className="text-right font-mono">{s.longitude.toFixed(4)}</TableCell>
+                    <TableCell><Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openEdit(s); }}><Pencil className="h-4 w-4" /></Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+        <LeafletMap
+          center={[52.0, 19.0]}
+          zoom={7}
+          markers={siteMarkers}
+          onMarkerClick={handleMarkerClick}
+          selectedMarkerId={selectedSiteId}
+          className="h-full min-h-[320px]"
+        />
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
