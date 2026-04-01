@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Eye, AlertTriangle, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Eye, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
 import {
@@ -111,6 +111,9 @@ const mergeDateTimeParts = (
   return `${nextDate}T${nextTime || '00:00'}`;
 };
 
+type SortableColumn = 'id' | 'plannedStart' | 'plannedEnd' | 'helicopter' | 'pilot' | 'status';
+type SortDirection = 'asc' | 'desc';
+
 const FlightOrdersPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
@@ -122,6 +125,8 @@ const FlightOrdersPage: React.FC = () => {
   const { data: operations = [] } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<SortableColumn>('plannedStart');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<FlightOrder | null>(null);
@@ -206,6 +211,51 @@ const FlightOrdersPage: React.FC = () => {
   const getHelicopterName = (id: string) => helicopters.find(h => h.id === id)?.registration ?? id;
   const getPilotName = (id: string) => crew.find(c => c.id === id)?.name ?? id;
   const getSiteName = (id: string) => sites.find(s => s.id === id)?.name ?? id;
+  const onSortChange = (column: SortableColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortColumn(column);
+    setSortDirection('asc');
+  };
+
+  const renderSortIcon = (column: SortableColumn) => {
+    if (sortColumn !== column) return <ArrowUpDown className="h-3.5 w-3.5" />;
+    return sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />;
+  };
+
+  const filteredAndSorted = useMemo(() => {
+    const compareDates = (aValue: string, bValue: string) => new Date(aValue).getTime() - new Date(bValue).getTime();
+
+    return [...filtered].sort((a, b) => {
+      let compareResult = 0;
+
+      if (sortColumn === 'id') {
+        compareResult = a.id.localeCompare(b.id, 'pl', { numeric: true, sensitivity: 'base' });
+      }
+      else if (sortColumn === 'plannedStart') {
+        compareResult = compareDates(a.plannedStart, b.plannedStart);
+      }
+      else if (sortColumn === 'plannedEnd') {
+        compareResult = compareDates(a.plannedEnd, b.plannedEnd);
+      }
+      else if (sortColumn === 'helicopter') {
+        compareResult = getHelicopterName(a.helicopterId).localeCompare(getHelicopterName(b.helicopterId), 'pl', { sensitivity: 'base' });
+      }
+      else if (sortColumn === 'status') {
+        compareResult = a.status - b.status;
+      }
+      else {
+        compareResult = getPilotName(a.pilotId).localeCompare(getPilotName(b.pilotId), 'pl', { sensitivity: 'base' });
+      }
+
+      if (compareResult !== 0) return sortDirection === 'asc' ? compareResult : -compareResult;
+
+      return a.id.localeCompare(b.id, 'pl', { numeric: true, sensitivity: 'base' });
+    });
+  }, [filtered, sortColumn, sortDirection, helicopters, crew]);
+
   const loggedPilotId = useMemo(
     () => crew.find(c => c.role === 'PILOT' && user?.email && c.email === user.email)?.id ?? '',
     [crew, user?.email]
@@ -593,17 +643,47 @@ const FlightOrdersPage: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Planowany start</TableHead>
-              <TableHead>Planowane ladowanie</TableHead>
-              <TableHead>Helikopter</TableHead>
-              <TableHead>Pilot</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 font-semibold" onClick={() => onSortChange('id')}>
+                  ID
+                  {renderSortIcon('id')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('plannedStart')}>
+                  Planowany start
+                  {renderSortIcon('plannedStart')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('plannedEnd')}>
+                  Planowane ladowanie
+                  {renderSortIcon('plannedEnd')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('helicopter')}>
+                  Helikopter
+                  {renderSortIcon('helicopter')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('pilot')}>
+                  Pilot
+                  {renderSortIcon('pilot')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('status')}>
+                  Status
+                  {renderSortIcon('status')}
+                </Button>
+              </TableHead>
               <TableHead className="w-24" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(o => (
+            {filteredAndSorted.map(o => (
               <TableRow key={o.id}>
                 <TableCell>{o.id}</TableCell>
                 <TableCell className="text-sm">{new Date(o.plannedStart).toLocaleString('pl-PL')}</TableCell>
