@@ -726,6 +726,104 @@ def test_update_allows_setting_actual_distance(
     assert response.json()["actual_distance"] == 138.4
 
 
+def test_partial_completion_sets_all_linked_operations_to_in_progress(
+    client, db_session, pilot_user_token, authz, operational_entities
+) -> None:
+    create_response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
+    assert create_response.status_code == 200
+    order_id = create_response.json()["id"]
+
+    response = client.patch(
+        f"/api/flight-orders/{order_id}",
+        headers=authz(pilot_user_token),
+        json={
+            "status": 5,
+            "actual_start": "2026-04-01T09:00:00Z",
+            "actual_end": "2026-04-01T10:00:00Z",
+        },
+    )
+    assert response.status_code == 200
+    operation = db_session.get(PlannedOperation, operational_entities["approved_operation_id"])
+    assert operation is not None
+    assert operation.status == WorkflowStatus.IN_PROGRESS
+
+
+def test_full_completion_requires_explicit_performed_operations_selection(
+    client, pilot_user_token, authz, operational_entities
+) -> None:
+    create_response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
+    assert create_response.status_code == 200
+    order_id = create_response.json()["id"]
+
+    response = client.patch(
+        f"/api/flight-orders/{order_id}",
+        headers=authz(pilot_user_token),
+        json={
+            "status": 6,
+            "actual_start": "2026-04-01T09:00:00Z",
+            "actual_end": "2026-04-01T10:00:00Z",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Select which linked operations were completed and which were not completed"
+
+
+def test_full_completion_sets_done_and_not_completed_statuses_for_linked_operations(
+    client, db_session, pilot_user_token, admin_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    extra_operation_id = _create_planned_operation(
+        client,
+        admin_token,
+        authz,
+        "PRJ-EXEC-SPLIT",
+        [
+            [19.9, 50.0],
+            [20.0, 50.1],
+        ],
+    )
+    extra_operation = db_session.get(PlannedOperation, extra_operation_id)
+    assert extra_operation is not None
+    extra_operation.status = WorkflowStatus.APPROVED
+    db_session.commit()
+
+    create_response = client.post(
+        "/api/flight-orders",
+        headers=authz(pilot_user_token),
+        json={
+            "planned_start": "2026-04-01T09:00:00Z",
+            "planned_end": "2026-04-01T10:00:00Z",
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"], extra_operation_id],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert create_response.status_code == 200
+    order_id = create_response.json()["id"]
+
+    update_response = client.patch(
+        f"/api/flight-orders/{order_id}",
+        headers=authz(pilot_user_token),
+        json={
+            "status": 6,
+            "actual_start": "2026-04-01T09:00:00Z",
+            "actual_end": "2026-04-01T10:00:00Z",
+            "performed_operation_ids": [ids["approved_operation_id"]],
+        },
+    )
+    assert update_response.status_code == 200
+
+    completed_operation = db_session.get(PlannedOperation, ids["approved_operation_id"])
+    not_completed_operation = db_session.get(PlannedOperation, extra_operation_id)
+    assert completed_operation is not None
+    assert not_completed_operation is not None
+    assert completed_operation.status == WorkflowStatus.DONE
+    assert not_completed_operation.status == WorkflowStatus.REJECTED
+
+
 def test_reject_when_pilot_has_overlapping_flight_order(
     client, db_session, admin_token, authz, operational_entities
 ) -> None:

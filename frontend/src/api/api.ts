@@ -565,6 +565,7 @@ export const updateFlightOrder = async (id: string, data: Partial<FlightOrder>):
   if (data.endSiteId !== undefined) payload.end_site_id = Number(data.endSiteId);
   if (data.status !== undefined) payload.status = data.status;
   if (data.operationIds !== undefined) payload.planned_operation_ids = data.operationIds.map(Number);
+  if (data.performedOperationIds !== undefined) payload.performed_operation_ids = data.performedOperationIds.map(Number);
   if (data.actualDistance !== undefined) payload.actual_distance = data.actualDistance;
   return toUiOrder(await request(`/flight-orders/${id}`, 'PATCH', payload));
 };
