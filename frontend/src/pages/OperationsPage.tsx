@@ -557,19 +557,48 @@ const OperationsPage: React.FC = () => {
           <DialogHeader><DialogTitle>Operacja {viewing?.projectCode}</DialogTitle></DialogHeader>
           {viewing && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="text-muted-foreground">Opis:</span> {viewing.shortDescription}</div>
-                <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{operationStatusLabels[viewing.status]}</Badge></div>
-                <div><span className="text-muted-foreground">Czynnosci:</span> {viewing.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</div>
-                <div><span className="text-muted-foreground">Proponowane daty:</span> {viewing.proposedDateFrom || '-'} - {viewing.proposedDateTo || '-'}</div>
-                <div><span className="text-muted-foreground">Planowane daty:</span> {viewing.plannedDateFrom || '-'} - {viewing.plannedDateTo || '-'}</div>
-                <div><span className="text-muted-foreground">Liczba punktow:</span> {viewing.pointsCount}</div>
-                <div><span className="text-muted-foreground">Długość trasy (km):</span> {viewing.distanceKm}</div>
+              <div className="space-y-2 rounded-md border p-3">
+                <h3 className="text-sm font-semibold">Szczegóły operacji</h3>
+                <div className="grid gap-3 text-sm md:grid-cols-2">
+                  <div><span className="text-muted-foreground">Opis:</span> {viewing.shortDescription}</div>
+                  <div><span className="text-muted-foreground">Status:</span> <Badge className={statusColors[viewing.status]}>{operationStatusLabels[viewing.status]}</Badge></div>
+                  <div><span className="text-muted-foreground">Czynnosci:</span> {viewing.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</div>
+                  <div><span className="text-muted-foreground">Proponowane daty:</span> {viewing.proposedDateFrom || '-'} - {viewing.proposedDateTo || '-'}</div>
+                  <div><span className="text-muted-foreground">Planowane daty:</span> {viewing.plannedDateFrom || '-'} - {viewing.plannedDateTo || '-'}</div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="text-muted-foreground">Osoby kontaktowe:</span> {viewing.contacts.join(', ') || '-'}</div>
-                <div><span className="text-muted-foreground">Powiązane zlecenia:</span> {viewing.linkedFlightOrderIds.join(', ') || '-'}</div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1 rounded-md border p-3">
+                  <h3 className="text-sm font-semibold">Trasa</h3>
+                  <div className="text-xs text-muted-foreground">Liczba punktów: {viewing.pointsCount}</div>
+                  <div className="text-xs text-muted-foreground">Długość (km): {viewing.distanceKm}</div>
+                </div>
+                <div className="space-y-1 rounded-md border p-3">
+                  <h3 className="text-sm font-semibold">Osoby kontaktowe</h3>
+                  {viewing.contacts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">-</p>
+                  ) : (
+                    <ul className="space-y-1 text-sm">
+                      {viewing.contacts.map((contact) => (
+                        <li key={contact}>{contact}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-md border p-3">
+                <h3 className="text-sm font-semibold">Powiązane zlecenia</h3>
+                {viewing.linkedFlightOrderIds.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">-</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {viewing.linkedFlightOrderIds.map((orderId) => (
+                      <Badge key={orderId} variant="secondary">{orderId}</Badge>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {(isSupervisor && viewing.status === 1) && (
