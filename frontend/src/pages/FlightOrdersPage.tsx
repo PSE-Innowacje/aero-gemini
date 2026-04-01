@@ -537,8 +537,10 @@ const FlightOrdersPage: React.FC = () => {
             <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
               <p><span className="text-muted-foreground">Waga załogi:</span> <strong>{crewWeight} kg</strong></p>
               <p>
-                <span className="text-muted-foreground">Wskaźnik referencyjny:</span>{' '}
-                {helicopter ? `244 / ${helicopter.maxWeight}` : '244 / {udźwig helikoptera}'}
+                <span className="text-muted-foreground">Obciążenie:</span>{' '}
+                {helicopter
+                  ? `${crewWeight} / ${helicopter.maxWeight} kg (${Math.round((crewWeight / helicopter.maxWeight) * 100)}%)`
+                  : `${crewWeight} / - kg`}
               </p>
               {helicopter && <p><span className="text-muted-foreground">Maks. zasięg:</span> {helicopter.maxRange} km</p>}
               {!editing && (

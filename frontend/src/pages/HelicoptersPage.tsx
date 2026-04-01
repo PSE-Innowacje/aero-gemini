@@ -282,12 +282,12 @@ const HelicoptersPage: React.FC = () => {
             <TableRow>
               <TableHead><SortHeader label="Rejestracja" column="registration" /></TableHead>
               <TableHead><SortHeader label="Typ" column="type" /></TableHead>
-              <TableHead><SortHeader label="Opis" column="description" /></TableHead>
-              <TableHead><SortHeader label="Maks. liczba załogi" column="maxCrew" /></TableHead>
               <TableHead><SortHeader label="Status" column="status" /></TableHead>
               <TableHead><SortHeader label="Ważność przeglądu" column="inspectionValidUntil" /></TableHead>
+              <TableHead><SortHeader label="Maks. liczba załogi" column="maxCrew" /></TableHead>
               <TableHead><SortHeader label="Zasięg (km)" column="maxRange" /></TableHead>
               <TableHead><SortHeader label="Maks. udźwig załogi (kg)" column="maxWeight" /></TableHead>
+              <TableHead><SortHeader label="Opis" column="description" /></TableHead>
               <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
@@ -296,13 +296,14 @@ const HelicoptersPage: React.FC = () => {
               <TableRow key={h.id}>
                 <TableCell className="font-medium">{h.registration}</TableCell>
                 <TableCell>{h.type}</TableCell>
-                <TableCell>{h.description || '-'}</TableCell>
-                <TableCell>{h.maxCrew}</TableCell>
                 <TableCell><Badge className={statusColors[h.status]}>{h.status === 'active' ? 'Aktywny' : 'Nieaktywny'}</Badge></TableCell>
                 <TableCell>{h.inspectionValidUntil ? h.inspectionValidUntil.split('T')[0] : '-'}</TableCell>
+                <TableCell>{h.maxCrew}</TableCell>
                 <TableCell>{h.maxRange}</TableCell>
                 <TableCell>{h.maxWeight}</TableCell>
+                <TableCell>{h.description || '-'}</TableCell>
                 <TableCell><Button variant="ghost" size="icon" onClick={() => openEdit(h)}><Pencil className="h-4 w-4" /></Button></TableCell>
+            
               </TableRow>
             ))}
           </TableBody>

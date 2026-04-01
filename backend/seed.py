@@ -266,6 +266,53 @@ def main() -> None:
             },
         ]
         if is_full_profile:
+            city_operation_templates = [
+                ("WARSZAWA", "Warszawa", 21.0122, 52.2297),
+                ("KRAKOW", "Krakow", 19.9450, 50.0647),
+                ("GDANSK", "Gdansk", 18.6466, 54.3520),
+                ("POZNAN", "Poznan", 16.9252, 52.4064),
+                ("WROCLAW", "Wroclaw", 17.0385, 51.1079),
+                ("LODZ", "Lodz", 19.4550, 51.7592),
+                ("LUBLIN", "Lublin", 22.5684, 51.2465),
+                ("KATOWICE", "Katowice", 19.0238, 50.2649),
+                ("SZCZECIN", "Szczecin", 14.5528, 53.4285),
+            ]
+            distance_variants = [
+                ("10", "krotka", 0.05, 0.03),
+                ("50", "srednia", 0.27, 0.14),
+                ("100", "dluga", 0.54, 0.28),
+            ]
+
+            generated_ops: list[dict[str, object]] = []
+            for city_code, city_name, city_lon, city_lat in city_operation_templates:
+                for distance_label, route_kind, lon_delta, lat_delta in distance_variants:
+                    generated_ops.append(
+                        {
+                            "project_code": f"TPL-{city_code}-{distance_label}",
+                            "short_description": (
+                                f"Trasa testowa {route_kind} ok. {distance_label} km - okolice {city_name}"
+                            ),
+                            "proposed_date_from": today + timedelta(days=12),
+                            "proposed_date_to": today + timedelta(days=14),
+                            "planned_date_from": today + timedelta(days=15),
+                            "planned_date_to": today + timedelta(days=16),
+                            "activities": ["patrolowanie", "zdjecia"],
+                            "extra_info": (
+                                f"Operacja testowa do dodawania do zlecen lotu; status przygotowane do planu; okolice miasta {city_name}"
+                            ),
+                            "route_geometry": {
+                                "type": "LineString",
+                                "coordinates": [
+                                    [city_lon - lon_delta, city_lat - lat_delta],
+                                    [city_lon, city_lat],
+                                    [city_lon + lon_delta, city_lat + lat_delta],
+                                ],
+                            },
+                            "status": WorkflowStatus.APPROVED,
+                            "contacts": ["planner@example.com"],
+                        }
+                    )
+
             operation_specs.extend(
                 [
                     {
@@ -308,6 +355,7 @@ def main() -> None:
                         "status": WorkflowStatus.APPROVED,
                         "contacts": ["ops@example.com"],
                     },
+                    *generated_ops,
                 ]
             )
         operations_by_code: dict[str, PlannedOperation] = {}
