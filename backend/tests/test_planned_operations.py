@@ -141,15 +141,15 @@ def test_status_transition_requires_supervisor_role(client, planner_token, authz
     assert response.json()["detail"] == "Planner cannot perform this status transition"
 
 
-def test_planner_cannot_resign_operation_via_status_change(client, planner_token, authz) -> None:
+def test_planner_can_resign_operation_via_status_change(client, planner_token, authz) -> None:
     created = _create_operation(client, planner_token, authz, "PRJ-PLANNER-RESIGN")
     response = client.post(
         f"/api/planned-operations/{created['id']}/status",
         headers=authz(planner_token),
         json={"status": 7},
     )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Planner cannot perform this status transition"
+    assert response.status_code == 200
+    assert response.json()["status"] == 7
 
 
 def test_status_transition_valid_for_supervisor(client, planner_token, supervisor_token, authz) -> None:
@@ -178,6 +178,65 @@ def test_invalid_status_transition_is_rejected(client, planner_token, supervisor
     )
     assert second.status_code == 400
     assert second.json()["detail"] == "Invalid status transition"
+
+
+def test_rejected_operation_can_transition_back_to_draft(client, planner_token, supervisor_token, authz) -> None:
+    created = _create_operation(client, planner_token, authz, "PRJ-REJECTED-TO-DRAFT")
+    reject = client.post(
+        f"/api/planned-operations/{created['id']}/status",
+        headers=authz(supervisor_token),
+        json={"status": 7},
+    )
+    assert reject.status_code == 200
+    assert reject.json()["status"] == 7
+
+    back_to_draft = client.post(
+        f"/api/planned-operations/{created['id']}/status",
+        headers=authz(supervisor_token),
+        json={"status": 1},
+    )
+    assert back_to_draft.status_code == 200
+    assert back_to_draft.json()["status"] == 1
+
+
+def test_planner_can_transition_rejected_operation_back_to_draft(client, planner_token, supervisor_token, authz) -> None:
+    created = _create_operation(client, planner_token, authz, "PRJ-PLANNER-REJECTED-TO-DRAFT")
+    reject = client.post(
+        f"/api/planned-operations/{created['id']}/status",
+        headers=authz(supervisor_token),
+        json={"status": 7},
+    )
+    assert reject.status_code == 200
+    assert reject.json()["status"] == 7
+
+    back_to_draft = client.post(
+        f"/api/planned-operations/{created['id']}/status",
+        headers=authz(planner_token),
+        json={"status": 1},
+    )
+    assert back_to_draft.status_code == 200
+    assert back_to_draft.json()["status"] == 1
+
+
+def test_admin_can_transition_rejected_operation_back_to_draft(
+    client, planner_token, supervisor_token, admin_token, authz
+) -> None:
+    created = _create_operation(client, planner_token, authz, "PRJ-ADMIN-REJECTED-TO-DRAFT")
+    reject = client.post(
+        f"/api/planned-operations/{created['id']}/status",
+        headers=authz(supervisor_token),
+        json={"status": 7},
+    )
+    assert reject.status_code == 200
+    assert reject.json()["status"] == 7
+
+    back_to_draft = client.post(
+        f"/api/planned-operations/{created['id']}/status",
+        headers=authz(admin_token),
+        json={"status": 1},
+    )
+    assert back_to_draft.status_code == 200
+    assert back_to_draft.json()["status"] == 1
 
 
 def test_planned_operations_status_filter(client, planner_token, supervisor_token, pilot_user_token, authz) -> None:

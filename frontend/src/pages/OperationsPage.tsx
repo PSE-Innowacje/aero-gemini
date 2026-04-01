@@ -86,6 +86,7 @@ const toHistoryActionLabel = (value: string): string => {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'update') return 'edycja';
   if (normalized === 'create') return 'utworzenie';
+  if (normalized === 'status_change') return 'zmiana statusu';
   return value;
 };
 

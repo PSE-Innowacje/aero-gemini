@@ -24,6 +24,7 @@ ALLOWED_TRANSITIONS: dict[WorkflowStatus, set[WorkflowStatus]] = {
         WorkflowStatus.DONE,
         WorkflowStatus.REJECTED,
     },
+    WorkflowStatus.REJECTED: {WorkflowStatus.DRAFT},
 }
 
 PLANNER_EDITABLE_STATUSES: set[WorkflowStatus] = {
@@ -32,6 +33,12 @@ PLANNER_EDITABLE_STATUSES: set[WorkflowStatus] = {
     WorkflowStatus.APPROVED,
     WorkflowStatus.SCHEDULED,
     WorkflowStatus.IN_PROGRESS,
+}
+PLANNER_ALLOWED_STATUS_TRANSITIONS: set[tuple[WorkflowStatus, WorkflowStatus]] = {
+    (WorkflowStatus.DRAFT, WorkflowStatus.REJECTED),
+    (WorkflowStatus.APPROVED, WorkflowStatus.REJECTED),
+    (WorkflowStatus.SCHEDULED, WorkflowStatus.REJECTED),
+    (WorkflowStatus.REJECTED, WorkflowStatus.DRAFT),
 }
 MAX_ROUTE_POINTS = 5000
 POLAND_BOUNDS = {
@@ -264,6 +271,8 @@ def enforce_status_transition(
                 )
         return
     if user.role == UserRole.PLANNER:
+        if (current, new) in PLANNER_ALLOWED_STATUS_TRANSITIONS:
+            return
         transition_logger.warning("transition_check_failed_forbidden_role")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Planner cannot perform this status transition")
     if user.role == UserRole.PILOT:
