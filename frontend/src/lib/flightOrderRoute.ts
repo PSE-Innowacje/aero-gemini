@@ -59,6 +59,53 @@ export interface FlightRouteVisuals {
   operationMarkers: FlightRouteOperationMarker[];
 }
 
+const activityLabelByValue: Record<string, string> = {
+  ogledziny_wizualne: 'Oględziny wizualne',
+  skan_3d: 'Skan 3D',
+  lokalizacja_awarii: 'Lokalizacja awarii',
+  zdjecia: 'Zdjęcia',
+  patrolowanie: 'Patrolowanie',
+};
+
+const activityValueAliases: Record<string, string> = {
+  ogledziny_wizualne: 'ogledziny_wizualne',
+  'oględziny wizualne': 'ogledziny_wizualne',
+  'ogledziny wizualne': 'ogledziny_wizualne',
+  skan_3d: 'skan_3d',
+  'skan 3d': 'skan_3d',
+  lokalizacja_awarii: 'lokalizacja_awarii',
+  'lokalizacja awarii': 'lokalizacja_awarii',
+  zdjecia: 'zdjecia',
+  zdjęcia: 'zdjecia',
+  patrolowanie: 'patrolowanie',
+  survey: 'ogledziny_wizualne',
+};
+
+function toActivityLabel(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  const known = activityValueAliases[normalized];
+  if (known) return activityLabelByValue[known] ?? known;
+  const cleaned = value.trim();
+  if (!cleaned) return '-';
+  return cleaned
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function buildOperationMarkerPopup(
+  operation: PlannedOperation | undefined,
+  operationId: string,
+  direction?: 'forward' | 'reverse'
+): string {
+  const operationLabel = operation?.projectCode ?? operationId;
+  const directionLabel = direction === 'reverse' ? 'Odwrotny' : 'Standardowy';
+  const activitiesLabel = operation?.activities?.length
+    ? operation.activities.map((activity) => toActivityLabel(activity)).join(', ')
+    : '-';
+  return `Operacja: ${operationLabel}<br/>Kierunek: ${directionLabel}<br/>Rodzaje zadań: ${activitiesLabel}`;
+}
+
 function resolveOperationPositions(
   opById: Map<string, PlannedOperation>,
   operationId: string,
@@ -180,7 +227,7 @@ export function buildFlightPreviewRouteVisuals(
       id: `op-${opId}`,
       lat: markerPoint[0],
       lng: markerPoint[1],
-      popup: op?.projectCode ? `Odcinek operacji: ${op.projectCode}` : `Odcinek operacji ${opId}`,
+      popup: buildOperationMarkerPopup(op, opId),
     });
 
     cursor = last;
@@ -234,14 +281,11 @@ export function buildFlightPreviewRouteVisualsFromOrderedOperations(
     }
 
     const markerPoint = opPositions[Math.floor(opPositions.length / 2)];
-    const directionLabel = orderedOperation.direction === 'reverse' ? ' (kierunek odwrotny)' : '';
     operationMarkers.push({
       id: `op-${operationId}`,
       lat: markerPoint[0],
       lng: markerPoint[1],
-      popup: op?.projectCode
-        ? `Odcinek operacji: ${op.projectCode}${directionLabel}`
-        : `Odcinek operacji ${operationId}${directionLabel}`,
+      popup: buildOperationMarkerPopup(op, operationId, orderedOperation.direction),
     });
 
     cursor = last;

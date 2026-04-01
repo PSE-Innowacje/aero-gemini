@@ -543,17 +543,27 @@ const FlightOrdersPage: React.FC = () => {
   const viewingMarkers: MapMarker[] = useMemo(() => {
     if (!viewing) return [];
     const siteMarkers = [
-      { siteId: viewing.startSiteId, markerType: 'site-start' as const, prefix: 'start' },
-      { siteId: viewing.endSiteId, markerType: 'site-end' as const, prefix: 'end' },
+      {
+        siteId: viewing.startSiteId,
+        markerType: 'site-start' as const,
+        prefix: 'start',
+        label: 'Lotnisko startowe',
+      },
+      {
+        siteId: viewing.endSiteId,
+        markerType: 'site-end' as const,
+        prefix: 'end',
+        label: 'Lotnisko docelowe',
+      },
     ]
-      .map(({ siteId, markerType, prefix }) => {
+      .map(({ siteId, markerType, prefix, label }) => {
         const site = sites.find((item) => item.id === siteId);
         if (!site) return null;
         return {
           id: `${prefix}-site-${site.id}`,
           lat: site.latitude,
           lng: site.longitude,
-          popup: site.name,
+          popup: `${label}: ${site.name}`,
           markerType,
         };
       })
