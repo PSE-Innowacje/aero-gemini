@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
+    cors_allow_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]
 
     model_config = SettingsConfigDict(env_prefix="AERO_", env_file=".env", extra="ignore")
 
