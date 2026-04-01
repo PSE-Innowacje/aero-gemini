@@ -518,8 +518,9 @@ def validate_selected_planned_operations(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Planned operation not found: {missing_ids}",
         )
+    allowed_statuses = {WorkflowStatus.APPROVED, WorkflowStatus.SCHEDULED}
     invalid_status_ids = [
-        operation.id for operation in operations if operation.status != WorkflowStatus.APPROVED
+        operation.id for operation in operations if operation.status not in allowed_statuses
     ]
     if invalid_status_ids:
         raise HTTPException(
