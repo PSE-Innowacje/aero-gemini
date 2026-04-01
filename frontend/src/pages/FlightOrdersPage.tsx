@@ -282,6 +282,35 @@ const FlightOrdersPage: React.FC = () => {
     enabled: canPreviewRoute,
   });
 
+  const canPreviewViewingRoute =
+    detailOpen &&
+    !!viewing &&
+    !!viewing.startSiteId &&
+    !!viewing.endSiteId &&
+    !!viewing.helicopterId;
+  const { data: viewingPreviewRoute } = useQuery({
+    queryKey: [
+      'flightOrderViewingPreview',
+      viewing?.id,
+      viewing?.startSiteId,
+      viewing?.endSiteId,
+      viewing?.helicopterId,
+      viewing?.operationIds,
+    ],
+    queryFn: ({ signal }) =>
+      previewFlightOrderRoute(
+        {
+          startSiteId: viewing!.startSiteId,
+          endSiteId: viewing!.endSiteId,
+          helicopterId: viewing!.helicopterId,
+          operationIds: viewing!.operationIds,
+          strategy: 'optimized',
+        },
+        signal
+      ),
+    enabled: canPreviewViewingRoute,
+  });
+
   const previewOperationIds = previewRoute?.orderedOperationIds?.length
     ? previewRoute.orderedOperationIds
     : form.operationIds;
@@ -383,7 +412,7 @@ const FlightOrdersPage: React.FC = () => {
     else {
       const payload = {
         ...form,
-        operationIds: previewOperationIds,
+        operationIds: [...form.operationIds],
       };
       createMut.mutate(payload);
     }
@@ -409,26 +438,44 @@ const FlightOrdersPage: React.FC = () => {
       .map(id => sites.find(s => s.id === id))
       .filter(Boolean)
       .map(s => ({ id: `site-${s!.id}`, lat: s!.latitude, lng: s!.longitude, popup: s!.name, markerType: 'site' as const }));
-    const routeVisuals = buildFlightPreviewRouteVisuals(
-      viewing.startSiteId,
-      viewing.endSiteId,
-      viewing.operationIds,
-      sites,
-      operations
-    );
+    const orderedViewingOperations = viewingPreviewRoute?.orderedOperations ?? [];
+    const routeVisuals = orderedViewingOperations.length > 0
+      ? buildFlightPreviewRouteVisualsFromOrderedOperations(
+          viewing.startSiteId,
+          viewing.endSiteId,
+          orderedViewingOperations,
+          sites,
+          operations
+        )
+      : buildFlightPreviewRouteVisuals(
+          viewing.startSiteId,
+          viewing.endSiteId,
+          viewing.operationIds,
+          sites,
+          operations
+        );
     const operationMarkers = routeVisuals?.operationMarkers ?? [];
     return [...siteMarkers, ...operationMarkers];
-  }, [viewing, sites, operations]);
+  }, [viewing, sites, operations, viewingPreviewRoute]);
 
   const viewingPolylines: MapPolyline[] = useMemo(() => {
     if (!viewing) return [];
-    const routeVisuals = buildFlightPreviewRouteVisuals(
-      viewing.startSiteId,
-      viewing.endSiteId,
-      viewing.operationIds,
-      sites,
-      operations
-    );
+    const orderedViewingOperations = viewingPreviewRoute?.orderedOperations ?? [];
+    const routeVisuals = orderedViewingOperations.length > 0
+      ? buildFlightPreviewRouteVisualsFromOrderedOperations(
+          viewing.startSiteId,
+          viewing.endSiteId,
+          orderedViewingOperations,
+          sites,
+          operations
+        )
+      : buildFlightPreviewRouteVisuals(
+          viewing.startSiteId,
+          viewing.endSiteId,
+          viewing.operationIds,
+          sites,
+          operations
+        );
     if (routeVisuals) {
       return [
         ...routeVisuals.transitPolylines
@@ -442,7 +489,7 @@ const FlightOrdersPage: React.FC = () => {
     const positions = buildFlightOrderPolylinePositions(viewing, sites, operations);
     if (!positions || positions.length < 2) return [];
     return [{ positions }];
-  }, [viewing, sites, operations]);
+  }, [viewing, sites, operations, viewingPreviewRoute]);
 
   const viewingCenter: [number, number] = viewingMarkers.length > 0
     ? [viewingMarkers[0].lat, viewingMarkers[0].lng]
