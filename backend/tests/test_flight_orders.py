@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from geopy.distance import geodesic
 
 from aero.models.crew_member import CrewMember
+from aero.models.enums import CrewRole, ResourceStatus, WorkflowStatus
 from aero.models.helicopter import Helicopter
 from aero.models.planned_operation import PlannedOperation
 
@@ -385,7 +386,7 @@ def test_preview_route_blocks_when_distance_exceeds_helicopter_range(
             "start_site_id": ids["site_a_id"],
             "end_site_id": ids["site_b_id"],
             "helicopter_id": ids["helicopter_id"],
-            "planned_operation_ids": [],
+            "planned_operation_ids": [ids["approved_operation_id"]],
         },
     )
     assert response.status_code == 200
@@ -465,7 +466,7 @@ def test_optimize_route_returns_404_for_missing_landing_site(
         json={
             "start_site_id": 999999,
             "end_site_id": ids["site_b_id"],
-            "planned_operation_ids": [],
+            "planned_operation_ids": [ids["approved_operation_id"]],
         },
     )
     assert response.status_code == 404
@@ -570,7 +571,7 @@ def test_optimize_route_requires_authentication(client, operational_entities) ->
         json={
             "start_site_id": ids["site_a_id"],
             "end_site_id": ids["site_b_id"],
-            "planned_operation_ids": [],
+            "planned_operation_ids": [ids["approved_operation_id"]],
         },
     )
     assert response.status_code == 401
@@ -706,3 +707,177 @@ def test_update_rejects_completion_without_actual_dates(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "actual_start and actual_end are required before status 5 or 6"
+
+
+def test_reject_when_pilot_has_overlapping_flight_order(
+    client, db_session, admin_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    first = client.post(
+        "/api/flight-orders",
+        headers=authz(admin_token),
+        json={
+            "planned_start": "2026-04-01T09:00:00Z",
+            "planned_end": "2026-04-01T10:00:00Z",
+            "pilot_id": ids["pilot_id"],
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"]],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert first.status_code == 200
+
+    other_helicopter = Helicopter(
+        registration_number="SP-RESV1",
+        type="AW109",
+        description="reservation test",
+        max_crew=5,
+        max_crew_weight=250,
+        status=ResourceStatus.ACTIVE,
+        inspection_valid_until=date.today() + timedelta(days=30),
+        range_km=200,
+    )
+    db_session.add(other_helicopter)
+    db_session.commit()
+
+    second = client.post(
+        "/api/flight-orders",
+        headers=authz(admin_token),
+        json={
+            "planned_start": "2026-04-01T09:30:00Z",
+            "planned_end": "2026-04-01T10:30:00Z",
+            "pilot_id": ids["pilot_id"],
+            "helicopter_id": other_helicopter.id,
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"]],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Pilot already has a flight order in this time slot"
+
+
+def test_reject_when_helicopter_has_overlapping_flight_order(
+    client, db_session, admin_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    first = client.post(
+        "/api/flight-orders",
+        headers=authz(admin_token),
+        json={
+            "planned_start": "2026-04-01T11:00:00Z",
+            "planned_end": "2026-04-01T12:00:00Z",
+            "pilot_id": ids["pilot_id"],
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"]],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert first.status_code == 200
+
+    other_pilot = CrewMember(
+        first_name="Pilot",
+        last_name="Reserve",
+        email="pilot-reserve@example.com",
+        weight=78,
+        role=CrewRole.PILOT,
+        pilot_license_number="LIC-RESV-1",
+        license_valid_until=date.today() + timedelta(days=30),
+        training_valid_until=date.today() + timedelta(days=30),
+    )
+    db_session.add(other_pilot)
+    next_operation = PlannedOperation(
+        project_code="PRJ-RESV-ALLOW",
+        short_description="Reservation allow test operation",
+        route_geometry={"type": "LineString", "coordinates": [[21.01, 52.11], [21.02, 52.12]]},
+        status=WorkflowStatus.APPROVED,
+        created_by=1,
+    )
+    db_session.add(next_operation)
+    db_session.commit()
+
+    second = client.post(
+        "/api/flight-orders",
+        headers=authz(admin_token),
+        json={
+            "planned_start": "2026-04-01T11:30:00Z",
+            "planned_end": "2026-04-01T12:30:00Z",
+            "pilot_id": other_pilot.id,
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [next_operation.id],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Helicopter already has a flight order in this time slot"
+
+
+def test_allow_when_time_slots_touch_but_do_not_overlap(
+    client, db_session, admin_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    first = client.post(
+        "/api/flight-orders",
+        headers=authz(admin_token),
+        json={
+            "planned_start": "2026-04-01T13:00:00Z",
+            "planned_end": "2026-04-01T14:00:00Z",
+            "pilot_id": ids["pilot_id"],
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"]],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert first.status_code == 200
+
+    other_pilot = CrewMember(
+        first_name="Pilot",
+        last_name="Touching",
+        email="pilot-touching@example.com",
+        weight=82,
+        role=CrewRole.PILOT,
+        pilot_license_number="LIC-RESV-2",
+        license_valid_until=date.today() + timedelta(days=30),
+        training_valid_until=date.today() + timedelta(days=30),
+    )
+    db_session.add(other_pilot)
+    next_operation = PlannedOperation(
+        project_code="PRJ-RESV-ALLOW",
+        short_description="Reservation allow test operation",
+        route_geometry={"type": "LineString", "coordinates": [[21.01, 52.11], [21.02, 52.12]]},
+        status=WorkflowStatus.APPROVED,
+        created_by=1,
+    )
+    db_session.add(next_operation)
+    db_session.commit()
+
+    second = client.post(
+        "/api/flight-orders",
+        headers=authz(admin_token),
+        json={
+            "planned_start": "2026-04-01T14:00:00Z",
+            "planned_end": "2026-04-01T15:00:00Z",
+            "pilot_id": other_pilot.id,
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [next_operation.id],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert second.status_code == 200

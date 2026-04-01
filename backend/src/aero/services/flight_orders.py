@@ -7,7 +7,7 @@ from typing import Any, cast
 from fastapi import HTTPException, status
 from geopy.distance import geodesic
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from aero.core.logging import log_duration
@@ -228,6 +228,51 @@ def validate_flight_order_time_order(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="actual_end must be later than actual_start",
             )
+
+
+def validate_flight_order_reservations(
+    db: Session,
+    *,
+    pilot_id: int,
+    helicopter_id: int,
+    planned_start: datetime | None,
+    planned_end: datetime | None,
+    excluded_order_id: int | None = None,
+) -> None:
+    if planned_start is None or planned_end is None:
+        return
+
+    overlap_condition = and_(
+        FlightOrder.planned_start.is_not(None),
+        FlightOrder.planned_end.is_not(None),
+        FlightOrder.planned_start < planned_end,
+        FlightOrder.planned_end > planned_start,
+    )
+    pilot_query = select(FlightOrder.id).where(
+        FlightOrder.pilot_id == pilot_id,
+        overlap_condition,
+    )
+    if excluded_order_id is not None:
+        pilot_query = pilot_query.where(FlightOrder.id != excluded_order_id)
+    pilot_overlap = db.scalar(pilot_query)
+    if pilot_overlap is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Pilot already has a flight order in this time slot",
+        )
+
+    helicopter_query = select(FlightOrder.id).where(
+        FlightOrder.helicopter_id == helicopter_id,
+        overlap_condition,
+    )
+    if excluded_order_id is not None:
+        helicopter_query = helicopter_query.where(FlightOrder.id != excluded_order_id)
+    helicopter_overlap = db.scalar(helicopter_query)
+    if helicopter_overlap is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Helicopter already has a flight order in this time slot",
+        )
 
 
 def _lonlat_points_from_route_geometry(route_geometry: dict[str, Any] | None) -> list[tuple[float, float]]:
@@ -465,7 +510,7 @@ def validate_selected_planned_operations(
     db: Session,
     planned_operation_ids: list[int],
 ) -> list[PlannedOperation]:
-    operations = get_planned_operations(db, planned_operation_ids)
+    operations = cast(list[PlannedOperation], get_planned_operations(db, planned_operation_ids))
     resolved_ids = {operation.id for operation in operations}
     missing_ids = [operation_id for operation_id in planned_operation_ids if operation_id not in resolved_ids]
     if missing_ids:

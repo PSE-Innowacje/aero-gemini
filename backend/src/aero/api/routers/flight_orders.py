@@ -30,6 +30,7 @@ from aero.services.flight_orders import (
     preview_flight_order,
     resolve_pilot_from_logged_user,
     validate_flight_order_status_transition,
+    validate_flight_order_reservations,
     validate_flight_order_time_order,
     validate_flight_order_constraints,
     validate_selected_planned_operations,
@@ -188,10 +189,6 @@ def create_flight_order(
         pilot_id=pilot_id_for_validation,
         crew_count=len(payload.crew_ids),
     ).info("flight_order_create_started")
-    planned_operations = cast(
-        list,
-        validate_selected_planned_operations(db, payload.planned_operation_ids),
-    )
     helicopter, pilot, crew, crew_weight = cast(
         tuple,
         validate_flight_order_constraints(
@@ -201,6 +198,17 @@ def create_flight_order(
         crew_ids=payload.crew_ids,
         estimated_distance=payload.estimated_distance,
         ),
+    )
+    validate_flight_order_reservations(
+        db,
+        pilot_id=pilot.id,
+        helicopter_id=helicopter.id,
+        planned_start=payload.planned_start,
+        planned_end=payload.planned_end,
+    )
+    planned_operations = cast(
+        list,
+        validate_selected_planned_operations(db, payload.planned_operation_ids),
     )
     repo = BaseRepository(db, FlightOrder)
     order = repo.create(
@@ -284,6 +292,14 @@ def update_flight_order(
         actual_end=target_actual_end,
     )
 
+    helicopter_id = payload.helicopter_id if payload.helicopter_id is not None else order.helicopter_id
+    pilot_id = payload.pilot_id if payload.pilot_id is not None else order.pilot_id
+    crew_ids = payload.crew_ids if payload.crew_ids is not None else [member.id for member in order.crew_members]
+    estimated_distance = (
+        payload.estimated_distance
+        if payload.estimated_distance is not None
+        else order.estimated_distance
+    )
     if any(
         value is not None
         for value in (
@@ -291,16 +307,10 @@ def update_flight_order(
             payload.pilot_id,
             payload.crew_ids,
             payload.estimated_distance,
+            payload.planned_start,
+            payload.planned_end,
         )
     ):
-        helicopter_id = payload.helicopter_id if payload.helicopter_id is not None else order.helicopter_id
-        pilot_id = payload.pilot_id if payload.pilot_id is not None else order.pilot_id
-        crew_ids = payload.crew_ids if payload.crew_ids is not None else [member.id for member in order.crew_members]
-        estimated_distance = (
-            payload.estimated_distance
-            if payload.estimated_distance is not None
-            else order.estimated_distance
-        )
         helicopter, pilot, crew, crew_weight = cast(
             tuple,
             validate_flight_order_constraints(
@@ -310,6 +320,14 @@ def update_flight_order(
             crew_ids=crew_ids,
             estimated_distance=estimated_distance,
             ),
+        )
+        validate_flight_order_reservations(
+            db,
+            pilot_id=pilot.id,
+            helicopter_id=helicopter.id,
+            planned_start=target_planned_start,
+            planned_end=target_planned_end,
+            excluded_order_id=order.id,
         )
         assign_relationships(order=order, pilot=pilot, helicopter=helicopter, crew=crew)
         data["crew_weight"] = crew_weight
