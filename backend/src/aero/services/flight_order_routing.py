@@ -153,17 +153,75 @@ def solve_tsp_order(matrix: List[List[float]]) -> List[int]:
         order = elkai.solve_int_matrix(int_matrix)
         return list(order)
 
-    # Fallback: nearest-neighbor
-    unvisited = set(range(n))
-    current = 0
-    order = [current]
-    unvisited.remove(current)
-    while unvisited:
-        next_node = min(unvisited, key=lambda j: matrix[current][j])
-        order.append(next_node)
-        unvisited.remove(next_node)
-        current = next_node
-    return order
+    # Fallback: deterministic nearest-neighbor.
+    # Evaluate all possible starts so result is not anchored to input order.
+    best_order: Optional[List[int]] = None
+    best_cost = math.inf
+    all_nodes = list(range(n))
+
+    for start in all_nodes:
+        unvisited = [node for node in all_nodes if node != start]
+        current = start
+        order = [current]
+        path_cost = 0.0
+
+        while unvisited:
+            next_node = min(unvisited, key=lambda j: (matrix[current][j], j))
+            path_cost += matrix[current][next_node]
+            order.append(next_node)
+            unvisited.remove(next_node)
+            current = next_node
+
+        if (
+            path_cost < best_cost
+            or (
+                math.isclose(path_cost, best_cost, rel_tol=1e-9, abs_tol=1e-9)
+                and (best_order is None or tuple(order) < tuple(best_order))
+            )
+        ):
+            best_cost = path_cost
+            best_order = order
+
+    return best_order or []
+
+
+def candidate_orders(order: List[int]) -> List[List[int]]:
+    if not order:
+        return []
+    if len(order) == 1:
+        return [order]
+    seen: set[tuple[int, ...]] = set()
+    out: list[list[int]] = []
+    n = len(order)
+    reversed_order = list(reversed(order))
+    for i in range(n):
+        for base in (order, reversed_order):
+            rotated = base[i:] + base[:i]
+            key = tuple(rotated)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(rotated)
+    return out
+
+
+def _segment_route_tie_key(segment: Segment, fallback_index: int) -> tuple[str, int]:
+    # Segment names generated from planned operations contain stable IDs.
+    # Fallback index keeps deterministic behavior for generic segment names.
+    return (segment.name, fallback_index)
+
+
+def _directed_order_tie_key(
+    directed_segments: List[DirectedSegment],
+    segments: List[Segment],
+) -> tuple[tuple[str, int, int], ...]:
+    key: list[tuple[str, int, int]] = []
+    for directed in directed_segments:
+        segment = segments[directed.segment_index]
+        segment_key = _segment_route_tie_key(segment, directed.segment_index)
+        direction_key = 0 if directed.entry == segment.start else 1
+        key.append((segment_key[0], segment_key[1], direction_key))
+    return tuple(key)
 
 
 def best_directions_for_order(
@@ -250,9 +308,30 @@ def plan_route(
         return [], geodesic_m(start, end)
 
     matrix = build_midpoint_distance_matrix(segments)
-    order = solve_tsp_order(matrix)
-    directed_segments, total_m = best_directions_for_order(segments, order, start, end)
-    return directed_segments, total_m
+    base_order = solve_tsp_order(matrix)
+    orders = candidate_orders(base_order)
+    if not orders:
+        return [], geodesic_m(start, end)
+
+    best_directed: Optional[List[DirectedSegment]] = None
+    best_total = math.inf
+    best_key: Optional[tuple[tuple[str, int, int], ...]] = None
+
+    for order in orders:
+        directed_segments, total_m = best_directions_for_order(segments, order, start, end)
+        route_key = _directed_order_tie_key(directed_segments, segments)
+        if (
+            total_m < best_total
+            or (
+                math.isclose(total_m, best_total, rel_tol=1e-9, abs_tol=1e-9)
+                and (best_key is None or route_key < best_key)
+            )
+        ):
+            best_total = total_m
+            best_directed = directed_segments
+            best_key = route_key
+
+    return best_directed or [], best_total
 
 
 def parse_latlon(text: str) -> LatLon:
