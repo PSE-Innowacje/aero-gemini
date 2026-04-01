@@ -127,6 +127,8 @@ const FlightOrdersPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [helicopterFilter, setHelicopterFilter] = useState<string>('all');
   const [pilotFilter, setPilotFilter] = useState<string>('all');
+  const [plannedDateFromFilter, setPlannedDateFromFilter] = useState<string>('');
+  const [plannedDateToFilter, setPlannedDateToFilter] = useState<string>('');
   const [sortColumn, setSortColumn] = useState<SortableColumn>('plannedStart');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [open, setOpen] = useState(false);
@@ -232,8 +234,42 @@ const FlightOrdersPage: React.FC = () => {
       result = result.filter((o) => o.pilotId === pilotFilter);
     }
 
+    const isPlannedDateFilterActive = Boolean(plannedDateFromFilter || plannedDateToFilter);
+    if (isPlannedDateFilterActive) {
+      const selectedFromTs = plannedDateFromFilter
+        ? new Date(`${plannedDateFromFilter}T00:00:00`).getTime()
+        : null;
+      const selectedToTs = plannedDateToFilter
+        ? new Date(`${plannedDateToFilter}T23:59:59.999`).getTime()
+        : null;
+
+      result = result.filter((order) => {
+        const plannedStartTs = new Date(order.plannedStart).getTime();
+        const plannedEndTs = new Date(order.plannedEnd).getTime();
+        if (Number.isNaN(plannedStartTs) || Number.isNaN(plannedEndTs)) return false;
+
+        if (selectedFromTs !== null && selectedToTs !== null) {
+          return plannedStartTs <= selectedToTs && plannedEndTs >= selectedFromTs;
+        }
+        if (selectedFromTs !== null) {
+          return plannedEndTs >= selectedFromTs;
+        }
+        if (selectedToTs !== null) {
+          return plannedStartTs <= selectedToTs;
+        }
+        return true;
+      });
+    }
+
     return result;
-  }, [orders, statusFilter, helicopterFilter, pilotFilter]);
+  }, [
+    orders,
+    statusFilter,
+    helicopterFilter,
+    pilotFilter,
+    plannedDateFromFilter,
+    plannedDateToFilter,
+  ]);
 
   const getHelicopterName = (id: string) => helicopters.find(h => h.id === id)?.registration ?? id;
   const getPilotName = (id: string) => crew.find(c => c.id === id)?.name ?? id;
@@ -722,6 +758,23 @@ const FlightOrdersPage: React.FC = () => {
               ))}
           </SelectContent>
         </Select>
+
+        <span className="text-sm text-muted-foreground ml-2">Zakres planowanego lotu:</span>
+        <Input
+          type="date"
+          value={plannedDateFromFilter}
+          onChange={(event) => setPlannedDateFromFilter(event.target.value)}
+          className="w-40"
+          aria-label="Zakres planowanego lotu od"
+        />
+        <Input
+          type="date"
+          value={plannedDateToFilter}
+          min={plannedDateFromFilter || undefined}
+          onChange={(event) => setPlannedDateToFilter(event.target.value)}
+          className="w-40"
+          aria-label="Zakres planowanego lotu do"
+        />
       </div>
 
       <div className="border rounded-lg">
