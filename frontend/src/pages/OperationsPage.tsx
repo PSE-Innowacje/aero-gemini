@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Eye } from 'lucide-react';
+import { Plus, Pencil, Eye, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
 const statusColors: Record<OperationStatus, string> = {
@@ -123,6 +123,9 @@ type OperationForm = {
   comment: string;
 };
 
+type SortableColumn = 'id' | 'projectCode' | 'proposedDateFrom' | 'proposedDateTo' | 'plannedDateFrom' | 'plannedDateTo';
+type SortDirection = 'asc' | 'desc';
+
 const emptyForm: OperationForm = {
   projectCode: '',
   shortDescription: '',
@@ -143,6 +146,8 @@ const OperationsPage: React.FC = () => {
   const { data: operations = [], isLoading } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
   const [statusFilter, setStatusFilter] = useState<string>('3');
   const [activityFilter, setActivityFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<SortableColumn>('plannedDateFrom');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<PlannedOperation | null>(null);
@@ -205,6 +210,20 @@ const OperationsPage: React.FC = () => {
     },
   });
 
+  const onSortChange = (column: SortableColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortColumn(column);
+    setSortDirection('asc');
+  };
+
+  const renderSortIcon = (column: SortableColumn) => {
+    if (sortColumn !== column) return <ArrowUpDown className="h-3.5 w-3.5" />;
+    return sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />;
+  };
+
   const filtered = useMemo(() => {
     const byStatus =
       statusFilter === 'all' ? operations : operations.filter((operation) => operation.status === Number(statusFilter));
@@ -219,15 +238,18 @@ const OperationsPage: React.FC = () => {
           );
 
     return [...byActivity].sort((a, b) => {
-      const aDate = a.plannedDateFrom?.trim() ?? '';
-      const bDate = b.plannedDateFrom?.trim() ?? '';
+      const aValue = (a[sortColumn] ?? '').toString().trim();
+      const bValue = (b[sortColumn] ?? '').toString().trim();
 
-      if (aDate && bDate) return aDate.localeCompare(bDate);
-      if (aDate) return -1;
-      if (bDate) return 1;
+      if (!aValue && bValue) return sortDirection === 'asc' ? 1 : -1;
+      if (aValue && !bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue && bValue) {
+        const compareResult = aValue.localeCompare(bValue, 'pl', { numeric: true, sensitivity: 'base' });
+        if (compareResult !== 0) return sortDirection === 'asc' ? compareResult : -compareResult;
+      }
       return a.id.localeCompare(b.id);
     });
-  }, [activityFilter, operations, statusFilter]);
+  }, [activityFilter, operations, sortColumn, sortDirection, statusFilter]);
   const hasProjectCode = form.projectCode.trim().length > 0;
   const hasShortDescription = form.shortDescription.trim().length > 0;
 
@@ -401,13 +423,43 @@ const OperationsPage: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nr</TableHead>
-              <TableHead>Nr zlecenia</TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 font-semibold" onClick={() => onSortChange('id')}>
+                  Nr operacji
+                  {renderSortIcon('id')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 font-semibold" onClick={() => onSortChange('projectCode')}>
+                  Nr zlecenia
+                  {renderSortIcon('projectCode')}
+                </Button>
+              </TableHead>
               <TableHead>Rodzaj czynności</TableHead>
-              <TableHead>Proponowane: najwcześniej</TableHead>
-              <TableHead>Proponowane: najpóźniej</TableHead>
-              <TableHead>Planowane: najwcześniej</TableHead>
-              <TableHead>Planowane: najpóźniej</TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('proposedDateFrom')}>
+                  Proponowane: najwcześniej
+                  {renderSortIcon('proposedDateFrom')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('proposedDateTo')}>
+                  Proponowane: najpóźniej
+                  {renderSortIcon('proposedDateTo')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('plannedDateFrom')}>
+                  Planowane: najwcześniej
+                  {renderSortIcon('plannedDateFrom')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button type="button" variant="ghost" className="h-auto gap-1 px-0 text-left font-semibold" onClick={() => onSortChange('plannedDateTo')}>
+                  Planowane: najpóźniej
+                  {renderSortIcon('plannedDateTo')}
+                </Button>
+              </TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24" />
             </TableRow>
