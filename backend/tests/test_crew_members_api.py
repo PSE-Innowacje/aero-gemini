@@ -63,6 +63,20 @@ def test_post_crew_member_validation_error_for_pilot_without_license(client, pla
     assert response.status_code == 422
 
 
+def test_post_crew_member_validation_error_for_pilot_with_null_license_number_only(client, planner_token, authz) -> None:
+    response = client.post(
+        "/api/crew-members",
+        headers=authz(planner_token),
+        json=_crew_member_payload(
+            "pilot.null.license@example.com",
+            pilot_license_number=None,
+            license_valid_until="2030-01-01",
+        ),
+    )
+
+    assert response.status_code == 422
+
+
 def test_post_crew_member_validation_error_for_pilot_license_too_long(client, planner_token, authz) -> None:
     response = client.post(
         "/api/crew-members",
@@ -176,6 +190,33 @@ def test_patch_crew_member_validation_error_when_switching_to_pilot_without_lice
         f"/api/crew-members/{crew_member_id}",
         headers=authz(planner_token),
         json={"role": "PILOT"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_patch_crew_member_validation_error_for_null_license_with_pilot_role(client, planner_token, authz) -> None:
+    created = client.post(
+        "/api/crew-members",
+        headers=authz(planner_token),
+        json=_crew_member_payload("patch.null.license@example.com"),
+    )
+    assert created.status_code == 200
+    crew_member_id = created.json()["id"]
+
+    response = client.patch(
+        f"/api/crew-members/{crew_member_id}",
+        headers=authz(planner_token),
+        json={
+            "first_name": "Asd",
+            "last_name": "Asd",
+            "email": "ad@a.a",
+            "weight": 133,
+            "role": "PILOT",
+            "pilot_license_number": None,
+            "license_valid_until": "2026-04-02",
+            "training_valid_until": "2026-04-02",
+        },
     )
 
     assert response.status_code == 422

@@ -94,7 +94,6 @@ const CrewPage: React.FC = () => {
     else {
       createMut.mutate({
         ...payload,
-        pilotLicenseNumber: null,
         licenseValidUntil: form.role === 'PILOT' ? form.licenseExpiry : null,
         trainingValidUntil: form.licenseExpiry,
       });
@@ -301,7 +300,12 @@ const CrewPage: React.FC = () => {
             </div>
             {form.role === 'PILOT' && (
               <div className="space-y-2">
-                <Label htmlFor="crew-pilot-license-number">Nr licencji pilota</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="crew-pilot-license-number">Nr licencji pilota</Label>
+                  <p className={`text-xs ${isPilotLicenseMissing ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {form.pilotLicenseNumber.length}/30
+                  </p>
+                </div>
                 <Input
                   id="crew-pilot-license-number"
                   type="text"
@@ -311,9 +315,6 @@ const CrewPage: React.FC = () => {
                   onChange={e => setForm(f => ({ ...f, pilotLicenseNumber: e.target.value }))}
                   required
                 />
-                <p className={`text-xs ${isPilotLicenseMissing ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  {form.pilotLicenseNumber.length}/30
-                </p>
                 {isPilotLicenseMissing && (
                   <p className="text-xs text-destructive">To pole jest wymagane dla roli Pilot.</p>
                 )}
