@@ -264,8 +264,6 @@ def enforce_status_transition(
                 )
         return
     if user.role == UserRole.PLANNER:
-        if current in {WorkflowStatus.DRAFT, WorkflowStatus.APPROVED, WorkflowStatus.SCHEDULED} and new == WorkflowStatus.REJECTED:
-            return
         transition_logger.warning("transition_check_failed_forbidden_role")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Planner cannot perform this status transition")
     if user.role == UserRole.PILOT:

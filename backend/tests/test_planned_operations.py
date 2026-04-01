@@ -141,6 +141,17 @@ def test_status_transition_requires_supervisor_role(client, planner_token, authz
     assert response.json()["detail"] == "Planner cannot perform this status transition"
 
 
+def test_planner_cannot_resign_operation_via_status_change(client, planner_token, authz) -> None:
+    created = _create_operation(client, planner_token, authz, "PRJ-PLANNER-RESIGN")
+    response = client.post(
+        f"/api/planned-operations/{created['id']}/status",
+        headers=authz(planner_token),
+        json={"status": 7},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Planner cannot perform this status transition"
+
+
 def test_status_transition_valid_for_supervisor(client, planner_token, supervisor_token, authz) -> None:
     created = _create_operation(client, planner_token, authz, "PRJ-TRANS")
     response = client.post(
@@ -208,6 +219,52 @@ def test_create_planned_operation_forbidden_for_pilot(client, pilot_user_token, 
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "Forbidden for current role"
+
+
+def test_create_planned_operation_rejects_extra_server_managed_fields(client, planner_token, authz) -> None:
+    response = client.post(
+        "/api/planned-operations",
+        headers=authz(planner_token),
+        json={
+            "project_code": "PRJ-EXTRA",
+            "short_description": "Attempt to set server-managed fields",
+            "route_geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [21.0, 52.1],
+                    [21.1, 52.2],
+                ],
+            },
+            "activities": ["ogledziny_wizualne"],
+            "status": 6,
+            "distance_km": 999,
+            "post_realization_notes": "Should not be accepted on create",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_planner_cannot_set_planned_dates_on_create(client, planner_token, authz) -> None:
+    response = client.post(
+        "/api/planned-operations",
+        headers=authz(planner_token),
+        json={
+            "project_code": "PRJ-PLANNED-DATE",
+            "short_description": "Planner tries to set planned dates",
+            "route_geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [21.0, 52.1],
+                    [21.1, 52.2],
+                ],
+            },
+            "activities": ["ogledziny_wizualne"],
+            "planned_date_from": str(date.today() + timedelta(days=4)),
+            "planned_date_to": str(date.today() + timedelta(days=5)),
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Planner cannot edit fields: planned_date_from, planned_date_to"
 
 
 def test_get_planned_operations_requires_authentication(client) -> None:
