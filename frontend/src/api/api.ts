@@ -249,6 +249,7 @@ const toUiOrder = (o: any): FlightOrder => ({
   endSiteId: String(o.end_site_id),
   crewWeight: Number(o.crew_weight ?? 0),
   estimatedDistance: Number(o.estimated_distance ?? 0),
+  actualDistance: o.actual_distance == null ? undefined : Number(o.actual_distance),
 });
 
 const toUiFlightOrderPreview = (p: any): FlightOrderPreview => ({
@@ -564,6 +565,7 @@ export const updateFlightOrder = async (id: string, data: Partial<FlightOrder>):
   if (data.endSiteId !== undefined) payload.end_site_id = Number(data.endSiteId);
   if (data.status !== undefined) payload.status = data.status;
   if (data.operationIds !== undefined) payload.planned_operation_ids = data.operationIds.map(Number);
+  if (data.actualDistance !== undefined) payload.actual_distance = data.actualDistance;
   return toUiOrder(await request(`/flight-orders/${id}`, 'PATCH', payload));
 };
 

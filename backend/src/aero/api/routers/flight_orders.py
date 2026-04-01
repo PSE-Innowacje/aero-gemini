@@ -61,6 +61,7 @@ def _to_read(order: FlightOrder) -> FlightOrderRead:
             "planned_operation_ids": [operation.id for operation in order.planned_operations],
             "crew_weight": order.crew_weight,
             "estimated_distance": order.estimated_distance,
+            "actual_distance": order.actual_distance,
             "status": order.status,
         }
     )
@@ -220,6 +221,7 @@ def create_flight_order(
             "start_site_id": payload.start_site_id,
             "end_site_id": payload.end_site_id,
             "estimated_distance": payload.estimated_distance,
+            "actual_distance": None,
             "crew_weight": crew_weight,
             "status": FlightOrderStatus.NEW,
         }

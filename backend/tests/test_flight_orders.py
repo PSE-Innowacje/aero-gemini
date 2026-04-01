@@ -51,6 +51,7 @@ def test_create_flight_order_computes_crew_weight(client, pilot_user_token, auth
     body = response.json()
     assert body["crew_weight"] == 150
     assert body["estimated_distance"] == 120.0
+    assert body["actual_distance"] is None
 
 
 def test_reject_when_helicopter_inspection_expired(
@@ -707,6 +708,22 @@ def test_update_rejects_completion_without_actual_dates(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "actual_start and actual_end are required before status 5 or 6"
+
+
+def test_update_allows_setting_actual_distance(
+    client, pilot_user_token, authz, operational_entities
+) -> None:
+    create_response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
+    assert create_response.status_code == 200
+    order_id = create_response.json()["id"]
+
+    response = client.patch(
+        f"/api/flight-orders/{order_id}",
+        headers=authz(pilot_user_token),
+        json={"actual_distance": 138.4},
+    )
+    assert response.status_code == 200
+    assert response.json()["actual_distance"] == 138.4
 
 
 def test_reject_when_pilot_has_overlapping_flight_order(

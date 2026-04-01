@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from loguru import logger
+from sqlalchemy import inspect, text
 
 from aero.api.router import api_router
 from aero.core.config import settings
@@ -95,3 +96,9 @@ def health_check() -> dict[str, str]:
 @log_duration(event="startup", started_message="startup_begin", completed_message="startup_complete")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    # Lightweight schema evolution for local/dev SQLite DBs without Alembic.
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("flight_orders")}
+    if "actual_distance" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE flight_orders ADD COLUMN actual_distance FLOAT"))
