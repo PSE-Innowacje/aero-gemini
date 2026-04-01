@@ -82,7 +82,7 @@ const AppSidebar: React.FC = () => {
         <div className="p-4">
           <Link to="/" className="flex items-center gap-2">
             <Plane className="h-5 w-5 text-sidebar-primary shrink-0" />
-            {!collapsed && <h2 className="text-lg font-bold text-sidebar-foreground hover:text-sidebar-primary transition-colors">Aero UI</h2>}
+            {!collapsed && <h2 className="text-lg font-bold text-sidebar-foreground hover:text-sidebar-primary transition-colors">HeliOps Aero</h2>}
           </Link>
         </div>
         {renderGroup('Administracja', adminItems)}

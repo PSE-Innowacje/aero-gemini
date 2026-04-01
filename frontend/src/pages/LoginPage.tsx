@@ -28,7 +28,7 @@ const LoginPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-muted/30">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">HeliOps</CardTitle>
+          <CardTitle className="text-2xl">HeliOps Aero</CardTitle>
           <CardDescription>System zarządzania operacjami lotniczymi</CardDescription>
         </CardHeader>
         <CardContent>
