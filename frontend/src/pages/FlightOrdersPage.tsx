@@ -201,6 +201,14 @@ const FlightOrdersPage: React.FC = () => {
     setHandledFocusOrderId(focusOrderId);
   }, [searchParams, orders, handledFocusOrderId]);
 
+  useEffect(() => {
+    if (!detailOpen || !viewing) return;
+    const refreshedOrder = orders.find((item) => item.id === viewing.id);
+    if (refreshedOrder) {
+      setViewing(refreshedOrder);
+    }
+  }, [orders, detailOpen, viewing]);
+
   const filtered = useMemo(() => {
     if (statusFilter === 'all') return orders;
     if (statusFilter === 'pending') return orders.filter((o) => o.status === 1 || o.status === 2);
@@ -533,6 +541,11 @@ const FlightOrdersPage: React.FC = () => {
     updateMut.mutate({ id: order.id, status: nextStatus });
   };
 
+  const handleDetailStatusChange = (nextStatus: FlightOrderStatus) => {
+    if (!viewing) return;
+    handleInlineStatusChange(viewing, nextStatus);
+  };
+
   const toggleCompletedOperation = (operationId: string) => {
     setCompletedOperationIds((current) =>
       current.includes(operationId) ? current.filter((id) => id !== operationId) : [...current, operationId]
@@ -713,24 +726,7 @@ const FlightOrdersPage: React.FC = () => {
                 <TableCell>{getHelicopterName(o.helicopterId)}</TableCell>
                 <TableCell>{getPilotName(o.pilotId)}</TableCell>
                 <TableCell>
-                  {(() => {
-                    const statusOptions = getAllowedStatusOptions(o.status, user?.role);
-                    return (
-                  <Select
-                    value={String(o.status)}
-                    onValueChange={v => handleInlineStatusChange(o, Number(v) as FlightOrderStatus)}
-                  >
-                    <SelectTrigger className="w-40 h-8 justify-start text-xs [&>svg]:ml-auto" disabled={statusOptions.length <= 1}>
-                      <span className="truncate text-left">{flightOrderStatusLabels[o.status]}</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map(s => (
-                        <SelectItem key={s} value={String(s)}>{flightOrderStatusLabels[s]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                    );
-                  })()}
+                  <Badge className={statusColors[o.status]}>{flightOrderStatusLabels[o.status]}</Badge>
                 </TableCell>
                 <TableCell className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => { setViewing(o); setDetailOpen(true); }}><Eye className="h-4 w-4" /></Button>
@@ -1064,6 +1060,29 @@ const FlightOrdersPage: React.FC = () => {
                     <Badge className={statusColors[viewing.status]}>{flightOrderStatusLabels[viewing.status]}</Badge>
                   </div>
                 </div>
+                {(() => {
+                  const statusOptions = getAllowedStatusOptions(viewing.status, user?.role)
+                    .filter((statusValue) => statusValue !== viewing.status);
+                  if (statusOptions.length === 0) return null;
+                  return (
+                    <div className="space-y-2">
+                      <span className="text-xs text-muted-foreground">Zmiana statusu</span>
+                      <div className="flex flex-wrap gap-2">
+                        {statusOptions.map((statusValue) => (
+                          <Button
+                            key={statusValue}
+                            size="sm"
+                            variant="outline"
+                            disabled={updateMut.isPending}
+                            onClick={() => handleDetailStatusChange(statusValue)}
+                          >
+                            {flightOrderStatusLabels[statusValue]}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {viewingMarkers.length > 0 && (
