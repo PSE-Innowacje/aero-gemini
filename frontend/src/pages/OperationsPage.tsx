@@ -502,11 +502,11 @@ const OperationsPage: React.FC = () => {
             {editing && (
               <>
                 <div className="space-y-1">
-                  <label htmlFor="operation-comment" className="text-sm font-medium text-foreground">Komentarz (zostanie dodany jako nowy wpis)</label>
+                  <label htmlFor="operation-comment" className="text-sm font-medium text-foreground">Komentarz (nowy wpis)</label>
                   <Textarea
                     id="operation-comment"
                     maxLength={500}
-                    placeholder="Komentarz (zostanie dodany jako nowy wpis)"
+                    placeholder="Komentarz (nowy wpis)"
                     value={form.comment}
                     onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))}
                   />
