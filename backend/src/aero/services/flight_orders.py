@@ -199,7 +199,7 @@ def validate_flight_order_status_transition(
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="actual_start and actual_end are required before status 5 or 6",
+            detail="actual_start and actual_end are required before marking the flight order as completed",
         )
 
 
@@ -524,7 +524,7 @@ def validate_selected_planned_operations(
     if invalid_status_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="All selected planned operations must have status 3",
+            detail="All selected planned operations must be confirmed for planning",
         )
     return operations
 

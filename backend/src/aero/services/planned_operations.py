@@ -260,7 +260,10 @@ def enforce_status_transition(
     allowed = ALLOWED_TRANSITIONS.get(current, set())
     if new not in allowed:
         transition_logger.warning("transition_check_failed_invalid_transition")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status transition")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Requested operation status change is not allowed from the current status",
+        )
     if user.role in {UserRole.SUPERVISOR, UserRole.ADMIN}:
         if current == WorkflowStatus.DRAFT and new == WorkflowStatus.APPROVED:
             if not operation.planned_date_from or not operation.planned_date_to:
@@ -274,7 +277,10 @@ def enforce_status_transition(
         if (current, new) in PLANNER_ALLOWED_STATUS_TRANSITIONS:
             return
         transition_logger.warning("transition_check_failed_forbidden_role")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Planner cannot perform this status transition")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Planner role is not allowed to perform this operation status change",
+        )
     if user.role == UserRole.PILOT:
         if current == WorkflowStatus.SCHEDULED and new in {
             WorkflowStatus.APPROVED,
@@ -283,7 +289,10 @@ def enforce_status_transition(
         }:
             return
         transition_logger.warning("transition_check_failed_forbidden_role")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pilot cannot perform this status transition")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pilot role is not allowed to perform this operation status change",
+        )
     transition_logger.warning("transition_check_failed_forbidden_role")
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden for current role")
 
