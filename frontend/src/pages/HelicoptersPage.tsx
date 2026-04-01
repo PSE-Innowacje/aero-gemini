@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchHelicopters, createHelicopter, updateHelicopter } from '@/api/api';
 import type { Helicopter } from '@/types';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { ArrowUpDown, ChevronDown, ChevronUp, Pencil, Plus } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 const statusColors: Record<string, string> = {
   active: 'bg-green-100 text-green-800',
@@ -30,6 +31,7 @@ type SortDirection = 'asc' | 'desc';
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 const HelicoptersPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const qc = useQueryClient();
   const { data: helicopters = [], isLoading } = useQuery({ queryKey: ['helicopters'], queryFn: fetchHelicopters });
   const [minRangeFilter, setMinRangeFilter] = useState<string>('');
@@ -49,6 +51,13 @@ const HelicoptersPage: React.FC = () => {
     maxRange: 0,
     maxWeight: 0,
   });
+
+  useEffect(() => {
+    const statusFromUrl = searchParams.get('status');
+    if (statusFromUrl === 'active' || statusFromUrl === 'inactive' || statusFromUrl === 'all') {
+      setStatusFilter(statusFromUrl);
+    }
+  }, [searchParams]);
 
   const createMut = useMutation({
     mutationFn: (d: Omit<Helicopter, 'id'>) => createHelicopter(d),

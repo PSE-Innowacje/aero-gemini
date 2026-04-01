@@ -40,6 +40,7 @@ import {
   buildFlightPreviewRouteVisualsFromOrderedOperations,
 } from '@/lib/flightOrderRoute';
 import { useAuthStore } from '@/store/authStore';
+import { useSearchParams } from 'react-router-dom';
 
 const statusColors: Record<FlightOrderStatus, string> = {
   1: 'bg-slate-100 text-slate-800',
@@ -111,6 +112,7 @@ const mergeDateTimeParts = (
 };
 
 const FlightOrdersPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const qc = useQueryClient();
   const { data: orders = [], isLoading } = useQuery({ queryKey: ['flightOrders'], queryFn: fetchFlightOrders });
@@ -163,7 +165,30 @@ const FlightOrdersPage: React.FC = () => {
     },
   });
 
-  const filtered = statusFilter === 'all' ? orders : orders.filter(o => o.status === Number(statusFilter));
+  useEffect(() => {
+    const statusFromUrl = searchParams.get('status');
+    if (!statusFromUrl) {
+      setStatusFilter('all');
+      return;
+    }
+    if (statusFromUrl === 'pending' || statusFromUrl === 'completed' || statusFromUrl === 'all') {
+      setStatusFilter(statusFromUrl);
+      return;
+    }
+    const asNumber = Number(statusFromUrl);
+    if ([1, 2, 3, 4, 5, 6, 7].includes(asNumber)) {
+      setStatusFilter(String(asNumber));
+      return;
+    }
+    setStatusFilter('all');
+  }, [searchParams]);
+
+  const filtered = useMemo(() => {
+    if (statusFilter === 'all') return orders;
+    if (statusFilter === 'pending') return orders.filter((o) => o.status === 1 || o.status === 2);
+    if (statusFilter === 'completed') return orders.filter((o) => o.status === 5 || o.status === 6);
+    return orders.filter((o) => o.status === Number(statusFilter));
+  }, [orders, statusFilter]);
 
   const getHelicopterName = (id: string) => helicopters.find(h => h.id === id)?.registration ?? id;
   const getPilotName = (id: string) => crew.find(c => c.id === id)?.name ?? id;
@@ -513,11 +538,17 @@ const FlightOrdersPage: React.FC = () => {
             <span className="truncate text-left">
               {statusFilter === 'all'
                 ? 'Wszystkie'
+                : statusFilter === 'pending'
+                  ? 'Oczekujace'
+                  : statusFilter === 'completed'
+                    ? 'Zakonczone'
                 : flightOrderStatusLabels[Number(statusFilter) as FlightOrderStatus]}
             </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Wszystkie</SelectItem>
+            <SelectItem value="pending">Oczekujace (1 i 2)</SelectItem>
+            <SelectItem value="completed">Zakonczone (5 i 6)</SelectItem>
             {([1, 2, 3, 4, 5, 6, 7] as FlightOrderStatus[]).map(s => (
               <SelectItem key={s} value={String(s)}>{flightOrderStatusLabels[s]}</SelectItem>
             ))}
