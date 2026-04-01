@@ -405,8 +405,12 @@ const FlightOrdersPage: React.FC = () => {
       {/* Create/Edit */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing ? 'Edytuj zlecenie' : 'Nowe zlecenie'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? 'Edytuj zlecenie na lot' : 'Nowe zlecenie na lot'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-foreground">Daty planowane</h3>
+              <p className="text-xs text-muted-foreground">Wypelnij pare dat: start i ladowanie.</p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-foreground">Data i godzina planowanego startu</label>
@@ -420,18 +424,24 @@ const FlightOrdersPage: React.FC = () => {
               </div>
             </div>
             {editing && (
-              <div className="grid grid-cols-2 gap-3">
+              <>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego startu</label>
-                  <Input type="datetime-local" value={form.actualStart} onChange={e => setForm(f => ({ ...f, actualStart: e.target.value }))} />
-                  <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
+                  <h3 className="text-sm font-semibold text-foreground">Daty rzeczywiste</h3>
+                  <p className="text-xs text-muted-foreground">Wypelnij pare dat przy rozliczaniu lotu.</p>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego ladowania</label>
-                  <Input type="datetime-local" value={form.actualEnd} onChange={e => setForm(f => ({ ...f, actualEnd: e.target.value }))} />
-                  <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego startu</label>
+                    <Input type="datetime-local" value={form.actualStart} onChange={e => setForm(f => ({ ...f, actualStart: e.target.value }))} />
+                    <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego ladowania</label>
+                    <Input type="datetime-local" value={form.actualEnd} onChange={e => setForm(f => ({ ...f, actualEnd: e.target.value }))} />
+                    <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             <div>
