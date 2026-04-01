@@ -142,6 +142,7 @@ const OperationsPage: React.FC = () => {
   const { user } = useAuthStore();
   const { data: operations = [], isLoading } = useQuery({ queryKey: ['operations'], queryFn: fetchOperations });
   const [statusFilter, setStatusFilter] = useState<string>('3');
+  const [activityFilter, setActivityFilter] = useState<string>('all');
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState<PlannedOperation | null>(null);
@@ -207,8 +208,17 @@ const OperationsPage: React.FC = () => {
   const filtered = useMemo(() => {
     const byStatus =
       statusFilter === 'all' ? operations : operations.filter((operation) => operation.status === Number(statusFilter));
+    const byActivity =
+      activityFilter === 'all'
+        ? byStatus
+        : byStatus.filter((operation) =>
+            operation.activities.some((activity) => {
+              const normalized = normalizeActivityValue(activity);
+              return normalized ? normalized === activityFilter : normalizeRawActivity(activity) === activityFilter;
+            })
+          );
 
-    return [...byStatus].sort((a, b) => {
+    return [...byActivity].sort((a, b) => {
       const aDate = a.plannedDateFrom?.trim() ?? '';
       const bDate = b.plannedDateFrom?.trim() ?? '';
 
@@ -217,7 +227,7 @@ const OperationsPage: React.FC = () => {
       if (bDate) return 1;
       return a.id.localeCompare(b.id);
     });
-  }, [operations, statusFilter]);
+  }, [activityFilter, operations, statusFilter]);
   const hasProjectCode = form.projectCode.trim().length > 0;
   const hasShortDescription = form.shortDescription.trim().length > 0;
 
@@ -364,7 +374,7 @@ const OperationsPage: React.FC = () => {
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Status:</span>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
@@ -372,6 +382,16 @@ const OperationsPage: React.FC = () => {
             <SelectItem value="all">Wszystkie</SelectItem>
             {allStatuses.map((statusValue) => (
               <SelectItem key={statusValue} value={String(statusValue)}>{operationStatusLabels[statusValue]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="ml-2 text-sm text-muted-foreground">Rodzaj czynności:</span>
+        <Select value={activityFilter} onValueChange={setActivityFilter}>
+          <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Wszystkie</SelectItem>
+            {activityOptions.map((activity) => (
+              <SelectItem key={activity.value} value={activity.value}>{activity.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
