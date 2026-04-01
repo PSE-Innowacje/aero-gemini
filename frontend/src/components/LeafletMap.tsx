@@ -89,8 +89,27 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const polylinesRef = useRef<L.Polyline[]>([]);
+
+  const getThemeTileConfig = () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    if (isDark) {
+      return {
+        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
+        subdomains: ['a', 'b', 'c', 'd'] as string[],
+      };
+    }
+    return {
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      // OSM serves tiles on a/b/c. Using "d" causes empty/gray tiles.
+      subdomains: ['a', 'b', 'c'] as string[],
+    };
+  };
 
   // Initialize map
   useEffect(() => {
@@ -99,15 +118,38 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     if (bounds) {
       map.fitBounds(bounds, { padding: [12, 12] });
     }
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    const tileConfig = getThemeTileConfig();
+    tileLayerRef.current = L.tileLayer(tileConfig.url, {
+      attribution: tileConfig.attribution,
+      subdomains: tileConfig.subdomains,
+      maxZoom: 20,
     }).addTo(map);
     mapRef.current = map;
 
     return () => {
+      tileLayerRef.current?.remove();
+      tileLayerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update tile layer on theme change (light/dark).
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      tileLayerRef.current?.remove();
+      const tileConfig = getThemeTileConfig();
+      tileLayerRef.current = L.tileLayer(tileConfig.url, {
+        attribution: tileConfig.attribution,
+        subdomains: tileConfig.subdomains,
+        maxZoom: 20,
+      }).addTo(map);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
