@@ -81,6 +81,13 @@ const toActivityLabel = (value: string): string => {
     .replace(/^./, (char) => char.toUpperCase());
 };
 
+const toHistoryActionLabel = (value: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'update') return 'edycja';
+  if (normalized === 'create') return 'utworzenie';
+  return value;
+};
+
 type OperationForm = {
   projectCode: string;
   shortDescription: string;
@@ -585,7 +592,7 @@ const OperationsPage: React.FC = () => {
                 ) : (
                   viewing.history.slice().reverse().map((entry, index) => (
                     <div key={`${entry.changedAt}-${index}`} className="rounded-md border p-2 text-xs">
-                      <p className="font-medium">{entry.action}</p>
+                      <p className="font-medium">{toHistoryActionLabel(entry.action)}</p>
                       <p className="text-muted-foreground">
                         {entry.actorEmail} - {new Date(entry.changedAt).toLocaleString('pl-PL')}
                       </p>
