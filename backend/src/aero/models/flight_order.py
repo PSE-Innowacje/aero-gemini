@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from aero.core.database import Base
 from aero.models.base import TimestampedModel
-from aero.models.enums import WorkflowStatus
+from aero.models.enums import FlightOrderStatus
 
 if TYPE_CHECKING:
     from aero.models.crew_member import CrewMember
@@ -39,7 +39,10 @@ class FlightOrder(TimestampedModel):
     end_site_id: Mapped[int] = mapped_column(ForeignKey("landing_sites.id"), nullable=False)
     crew_weight: Mapped[int] = mapped_column(Integer, default=0)
     estimated_distance: Mapped[float] = mapped_column(Float, default=0.0)
-    status: Mapped[WorkflowStatus] = mapped_column(Enum(WorkflowStatus), default=WorkflowStatus.DRAFT)
+    status: Mapped[FlightOrderStatus] = mapped_column(
+        Enum(FlightOrderStatus),
+        default=FlightOrderStatus.NEW,
+    )
 
     pilot: Mapped[CrewMember] = relationship(
         back_populates="flight_orders_as_pilot",

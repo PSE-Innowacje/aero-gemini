@@ -178,14 +178,14 @@ schemas:
     latitude: float
 
   FlightOrderCreate:
-    planned_start: datetime?
-    planned_end: datetime?
-    pilot_id: int
+    planned_start: datetime
+    planned_end: datetime
+    pilot_id: int?
     helicopter_id: int
-    crew_ids: "list[int]"
+    crew_ids: "list[int] (default=[])"
     start_site_id: int
     end_site_id: int
-    planned_operation_ids: "list[int]?"
+    planned_operation_ids: "list[int] (min_length=1)"
     estimated_distance: float
   FlightOrderUpdate:
     planned_start: datetime?
@@ -198,7 +198,7 @@ schemas:
     start_site_id: int?
     end_site_id: int?
     estimated_distance: float?
-    status: "1|2|3|4|5|6|7?"
+    status: "1|2|3|4|5|6|7? (flight_order_status)"
     planned_operation_ids: "list[int]?"
   FlightOrderRead:
     id: int
@@ -214,7 +214,7 @@ schemas:
     planned_operation_ids: "list[int]"
     crew_weight: int
     estimated_distance: float
-    status: "1|2|3|4|5|6|7"
+    status: "1|2|3|4|5|6|7 (flight_order_status)"
   FlightOrderPreviewRequest:
     start_site_id: int
     end_site_id: int
@@ -243,6 +243,15 @@ workflow_status:
   "5": IN_PROGRESS
   "6": DONE
   "7": REJECTED
+
+flight_order_status:
+  "1": NEW
+  "2": SUBMITTED_FOR_APPROVAL
+  "3": REJECTED
+  "4": APPROVED
+  "5": PARTIALLY_COMPLETED
+  "6": COMPLETED
+  "7": NOT_COMPLETED
 
 endpoints:
   - id: auth_register
@@ -434,11 +443,16 @@ endpoints:
     method: POST
     path: /flight-orders
     auth: bearer
-    roles: [ADMIN, PLANNER, SUPERVISOR]
+    roles: [PILOT]
     request_schema: FlightOrderCreate
     response_schema: FlightOrderRead
+    errors:
+      "400": Logged user is not mapped to PILOT crew member, helicopter inactive, invalid planned operation status, or validation rules failed
     notes:
+      - pilot_id is auto-resolved from currently logged user and payload pilot_id is ignored
       - server validates pilot/helicopter/crew/distance constraints
+      - helicopter must be active
+      - all selected planned operations must exist and have status 3 (APPROVED)
       - server assigns crew and planned operation relationships
 
   - id: flight_orders_list
@@ -461,6 +475,7 @@ endpoints:
     notes:
       - constraints are revalidated when pilot/helicopter/crew/distance changes
       - planned operation links are updated when planned_operation_ids is provided
+      - actual_start and actual_end are required before setting status to 5 or 6
 
   - id: flight_orders_preview
     method: POST

@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 
 from aero.api.deps import require_roles
 from aero.core.database import get_db
-from aero.models.enums import UserRole, WorkflowStatus
+from aero.models.enums import FlightOrderStatus, UserRole, WorkflowStatus
 from aero.models.flight_order import FlightOrder
+from aero.models.user import User
 from aero.repositories.base import BaseRepository
 from aero.schemas.flight_order import (
     FlightOrderCreate,
@@ -24,9 +25,11 @@ from aero.services.flight_order_routing import optimize_flight_order_routing
 from aero.services.flight_orders import (
     assign_relationships,
     estimate_flight_order_distance_km,
-    get_planned_operations,
     preview_flight_order,
+    resolve_pilot_from_logged_user,
+    validate_flight_order_status_transition,
     validate_flight_order_constraints,
+    validate_selected_planned_operations,
 )
 
 router = APIRouter()
@@ -154,21 +157,28 @@ def optimize_flight_order_route(
 def create_flight_order(
     payload: FlightOrderCreate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
+    user: User = Depends(require_roles(UserRole.PILOT)),
 ) -> FlightOrderRead:
+    if payload.pilot_id is not None:
+        logger.bind(event="flight_order_api", action="create").warning("pilot_id_ignored_in_create_payload")
+    pilot = resolve_pilot_from_logged_user(db, user)
     logger.bind(
         event="flight_order_api",
         action="create",
         helicopter_id=payload.helicopter_id,
-        pilot_id=payload.pilot_id,
+        pilot_id=pilot.id,
         crew_count=len(payload.crew_ids),
     ).info("flight_order_create_started")
+    planned_operations = cast(
+        list,
+        validate_selected_planned_operations(db, payload.planned_operation_ids),
+    )
     helicopter, pilot, crew, crew_weight = cast(
         tuple,
         validate_flight_order_constraints(
         db=db,
         helicopter_id=payload.helicopter_id,
-        pilot_id=payload.pilot_id,
+        pilot_id=pilot.id,
         crew_ids=payload.crew_ids,
         estimated_distance=payload.estimated_distance,
         ),
@@ -184,9 +194,9 @@ def create_flight_order(
             "end_site_id": payload.end_site_id,
             "estimated_distance": payload.estimated_distance,
             "crew_weight": crew_weight,
+            "status": FlightOrderStatus.NEW,
         }
     )
-    planned_operations = cast(list, get_planned_operations(db, payload.planned_operation_ids or []))
     _mark_operations_as_scheduled(planned_operations)
     assign_relationships(
         order=order,
@@ -237,6 +247,16 @@ def update_flight_order(
 
     data = payload.model_dump(exclude_unset=True, exclude={"planned_operation_ids", "crew_ids"})
 
+    target_status = payload.status if payload.status is not None else order.status
+    target_actual_start = payload.actual_start if payload.actual_start is not None else order.actual_start
+    target_actual_end = payload.actual_end if payload.actual_end is not None else order.actual_end
+    validate_flight_order_status_transition(
+        current_status=order.status,
+        new_status=target_status,
+        actual_start=target_actual_start,
+        actual_end=target_actual_end,
+    )
+
     if any(
         value is not None
         for value in (
@@ -270,7 +290,7 @@ def update_flight_order(
 
     order = repo.update(order, data)
     if payload.planned_operation_ids is not None:
-        order.planned_operations = get_planned_operations(db, payload.planned_operation_ids)
+        order.planned_operations = validate_selected_planned_operations(db, payload.planned_operation_ids)
         _mark_operations_as_scheduled(order.planned_operations)
         db.commit()
         db.refresh(order)

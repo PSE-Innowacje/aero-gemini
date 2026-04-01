@@ -26,3 +26,13 @@ class WorkflowStatus(int, Enum):
     IN_PROGRESS = 5
     DONE = 6
     REJECTED = 7
+
+
+class FlightOrderStatus(int, Enum):
+    NEW = 1
+    SUBMITTED_FOR_APPROVAL = 2
+    REJECTED = 3
+    APPROVED = 4
+    PARTIALLY_COMPLETED = 5
+    COMPLETED = 6
+    NOT_COMPLETED = 7

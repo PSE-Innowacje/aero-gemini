@@ -18,9 +18,11 @@ if str(SRC_PATH) not in sys.path:
 from aero.core.database import Base, get_db  # noqa: E402
 from aero.main import app as fastapi_app  # noqa: E402
 from aero.models.crew_member import CrewMember  # noqa: E402
-from aero.models.enums import CrewRole, ResourceStatus, UserRole  # noqa: E402
+from aero.models.enums import CrewRole, ResourceStatus, UserRole, WorkflowStatus  # noqa: E402
 from aero.models.helicopter import Helicopter  # noqa: E402
 from aero.models.landing_site import LandingSite  # noqa: E402
+from aero.models.planned_operation import PlannedOperation  # noqa: E402
+from aero.models.user import User  # noqa: E402
 
 
 @pytest.fixture
@@ -96,6 +98,13 @@ def authz() -> Callable[[str], dict[str, str]]:
 
 @pytest.fixture
 def operational_entities(db_session: Session) -> dict[str, int]:
+    operation_creator = User(
+        first_name="System",
+        last_name="Seed",
+        email="system-seed@example.com",
+        password_hash="seed",
+        role=UserRole.ADMIN,
+    )
     helicopter = Helicopter(
         registration_number="SP-TEST1",
         type="AW109",
@@ -109,7 +118,7 @@ def operational_entities(db_session: Session) -> dict[str, int]:
     pilot = CrewMember(
         first_name="Pilot",
         last_name="One",
-        email="crew-pilot@example.com",
+        email="pilot-user@example.com",
         weight=80,
         role=CrewRole.PILOT,
         pilot_license_number="LIC-1",
@@ -128,7 +137,19 @@ def operational_entities(db_session: Session) -> dict[str, int]:
     )
     site_a = LandingSite(name="A", latitude=52.1, longitude=21.0)
     site_b = LandingSite(name="B", latitude=52.2, longitude=21.1)
-    db_session.add_all([helicopter, pilot, observer, site_a, site_b])
+    db_session.add(operation_creator)
+    db_session.flush()
+    approved_operation = PlannedOperation(
+        project_code="PRJ-BASE-APPROVED",
+        short_description="Base approved operation",
+        route_geometry={
+            "type": "LineString",
+            "coordinates": [[21.01, 52.11], [21.03, 52.12], [21.06, 52.14]],
+        },
+        status=WorkflowStatus.APPROVED,
+        created_by=operation_creator.id,
+    )
+    db_session.add_all([helicopter, pilot, observer, site_a, site_b, approved_operation])
     db_session.commit()
     return {
         "helicopter_id": helicopter.id,
@@ -136,4 +157,5 @@ def operational_entities(db_session: Session) -> dict[str, int]:
         "observer_id": observer.id,
         "site_a_id": site_a.id,
         "site_b_id": site_b.id,
+        "approved_operation_id": approved_operation.id,
     }

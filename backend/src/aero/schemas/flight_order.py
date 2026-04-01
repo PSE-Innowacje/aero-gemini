@@ -1,19 +1,21 @@
 from datetime import datetime
 from typing import Literal
 
-from aero.models.enums import WorkflowStatus
+from pydantic import Field
+
+from aero.models.enums import FlightOrderStatus
 from aero.schemas.common import ORMModel
 
 
 class FlightOrderCreate(ORMModel):
-    planned_start: datetime | None = None
-    planned_end: datetime | None = None
-    pilot_id: int
+    planned_start: datetime
+    planned_end: datetime
+    pilot_id: int | None = None
     helicopter_id: int
-    crew_ids: list[int]
+    crew_ids: list[int] = Field(default_factory=list)
     start_site_id: int
     end_site_id: int
-    planned_operation_ids: list[int] | None = None
+    planned_operation_ids: list[int] = Field(min_length=1)
     estimated_distance: float
 
 
@@ -28,7 +30,7 @@ class FlightOrderUpdate(ORMModel):
     start_site_id: int | None = None
     end_site_id: int | None = None
     estimated_distance: float | None = None
-    status: WorkflowStatus | None = None
+    status: FlightOrderStatus | None = None
     planned_operation_ids: list[int] | None = None
 
 
@@ -46,7 +48,7 @@ class FlightOrderRead(ORMModel):
     planned_operation_ids: list[int]
     crew_weight: int
     estimated_distance: float
-    status: WorkflowStatus
+    status: FlightOrderStatus
 
 
 class FlightOrderDistanceEstimateRequest(ORMModel):

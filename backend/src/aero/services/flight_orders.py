@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session
 
 from aero.core.logging import log_duration
 from aero.models.crew_member import CrewMember
+from aero.models.enums import CrewRole, FlightOrderStatus, ResourceStatus, WorkflowStatus
 from aero.models.flight_order import FlightOrder
 from aero.models.helicopter import Helicopter
 from aero.models.landing_site import LandingSite
 from aero.models.planned_operation import PlannedOperation
+from aero.models.user import User
 from aero.services.flight_order_routing import optimize_flight_order_routing
 
 _PREVIEW_CACHE_TTL_SECONDS = 10.0
@@ -44,6 +46,18 @@ def _resolve_related_entities(
         validation_logger.warning("validation_related_entity_not_found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Related entity not found"
+        )
+    if helicopter.status != ResourceStatus.ACTIVE:
+        validation_logger.bind(helicopter_status=helicopter.status.value).warning("helicopter_not_active")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Helicopter must be active",
+        )
+    if pilot.role != CrewRole.PILOT:
+        validation_logger.bind(pilot_role=pilot.role.value).warning("crew_member_is_not_pilot")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Selected pilot is not a PILOT crew member",
         )
 
     return helicopter, pilot, crew
@@ -79,11 +93,14 @@ def _validate_certification_dates(
 
 def _validate_weight_and_range(
     helicopter: Helicopter,
+    pilot: CrewMember,
     crew: list[CrewMember],
     estimated_distance: float,
     validation_logger,
 ) -> int:
-    crew_weight = int(sum(member.weight for member in crew))
+    unique_member_weights = {member.id: member.weight for member in crew}
+    unique_member_weights[pilot.id] = pilot.weight
+    crew_weight = int(sum(unique_member_weights.values()))
     if crew_weight > helicopter.max_crew_weight:
         validation_logger.bind(
             crew_weight=crew_weight,
@@ -145,6 +162,7 @@ def validate_flight_order_constraints(
     )
     crew_weight = _validate_weight_and_range(
         helicopter=helicopter,
+        pilot=pilot,
         crew=crew,
         estimated_distance=estimated_distance,
         validation_logger=validation_logger,
@@ -152,6 +170,37 @@ def validate_flight_order_constraints(
 
     validation_logger.bind(crew_count=len(crew), crew_weight=crew_weight).debug("validation_result")
     return helicopter, pilot, crew, crew_weight
+
+
+def resolve_pilot_from_logged_user(db: Session, user: User) -> CrewMember:
+    pilot = db.scalar(
+        select(CrewMember).where(
+            CrewMember.email == user.email,
+            CrewMember.role == CrewRole.PILOT,
+        )
+    )
+    if pilot is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Logged user is not mapped to PILOT crew member",
+        )
+    return pilot
+
+
+def validate_flight_order_status_transition(
+    *,
+    current_status: FlightOrderStatus,
+    new_status: FlightOrderStatus,
+    actual_start,
+    actual_end,
+) -> None:
+    if new_status in {FlightOrderStatus.PARTIALLY_COMPLETED, FlightOrderStatus.COMPLETED} and (
+        actual_start is None or actual_end is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="actual_start and actual_end are required before status 5 or 6",
+        )
 
 
 def _lonlat_points_from_route_geometry(route_geometry: dict[str, Any] | None) -> list[tuple[float, float]]:
@@ -383,6 +432,29 @@ def get_planned_operations(db: Session, planned_operation_ids: list[int]) -> lis
         "resolve_planned_operations_resolved_counts"
     )
     return resolved
+
+
+def validate_selected_planned_operations(
+    db: Session,
+    planned_operation_ids: list[int],
+) -> list[PlannedOperation]:
+    operations = get_planned_operations(db, planned_operation_ids)
+    resolved_ids = {operation.id for operation in operations}
+    missing_ids = [operation_id for operation_id in planned_operation_ids if operation_id not in resolved_ids]
+    if missing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Planned operation not found: {missing_ids}",
+        )
+    invalid_status_ids = [
+        operation.id for operation in operations if operation.status != WorkflowStatus.APPROVED
+    ]
+    if invalid_status_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="All selected planned operations must have status 3",
+        )
+    return operations
 
 
 def assign_relationships(

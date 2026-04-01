@@ -240,20 +240,25 @@ Used by most list endpoints:
 
 ### `POST /api/flight-orders`
 
-- Auth: `ADMIN`, `PLANNER`, `SUPERVISOR`
+- Auth: `PILOT`
 - Body (`FlightOrderCreate`):
-  - `planned_start` (datetime | null)
-  - `planned_end` (datetime | null)
-  - `pilot_id` (int)
+  - `planned_start` (datetime)
+  - `planned_end` (datetime)
+  - `pilot_id` (int | null, ignored when provided by client)
   - `helicopter_id` (int)
-  - `crew_ids` (list[int])
+  - `crew_ids` (list[int], optional, default `[]`)
   - `start_site_id` (int)
   - `end_site_id` (int)
-  - `planned_operation_ids` (list[int] | null)
+  - `planned_operation_ids` (list[int], required, min length `1`)
   - `estimated_distance` (float)
 - Behavior:
+  - Pilot is auto-resolved from currently logged user mapped to `CrewMember` with role `PILOT`.
   - Validates helicopter/pilot/crew constraints and assigns relationships.
+  - Selected planned operations must exist and all have status `3` (`APPROVED`).
+  - Helicopter must have status `active`.
 - Response: `FlightOrderRead`
+- Errors:
+  - `400` if logged user is not mapped to pilot crew member, helicopter is inactive, planned operation status is invalid, or validation rules fail
 
 ### `GET /api/flight-orders`
 
@@ -269,11 +274,12 @@ Used by most list endpoints:
   - `pilot_id`, `helicopter_id`, `crew_ids`
   - `start_site_id`, `end_site_id`
   - `estimated_distance`
-  - `status` (workflow enum int)
+  - `status` (flight-order status enum int: `1=NEW`, `2=SUBMITTED_FOR_APPROVAL`, `3=REJECTED`, `4=APPROVED`, `5=PARTIALLY_COMPLETED`, `6=COMPLETED`, `7=NOT_COMPLETED`)
   - `planned_operation_ids`
 - Behavior:
   - Re-validates flight constraints when pilot/helicopter/crew/distance changes.
   - Updates planned operation links when `planned_operation_ids` is provided.
+  - Requires `actual_start` and `actual_end` before setting status to `5` or `6`.
 - Response: `FlightOrderRead`
 - Errors:
   - `404` if flight order not found

@@ -14,12 +14,13 @@ def _create_flight_order(client, token: str, authz, ids: dict[str, int], estimat
         "/api/flight-orders",
         headers=authz(token),
         json={
-            "pilot_id": ids["pilot_id"],
+            "planned_start": "2026-04-01T09:00:00Z",
+            "planned_end": "2026-04-01T10:00:00Z",
             "helicopter_id": ids["helicopter_id"],
-            "crew_ids": [ids["pilot_id"], ids["observer_id"]],
+            "crew_ids": [ids["observer_id"]],
             "start_site_id": ids["site_a_id"],
             "end_site_id": ids["site_b_id"],
-            "planned_operation_ids": [],
+            "planned_operation_ids": [ids["approved_operation_id"]],
             "estimated_distance": estimated_distance,
         },
     )
@@ -43,8 +44,8 @@ def _create_planned_operation(client, token: str, authz, project_code: str, coor
     return response.json()["id"]
 
 
-def test_create_flight_order_computes_crew_weight(client, planner_token, authz, operational_entities) -> None:
-    response = _create_flight_order(client, planner_token, authz, operational_entities, estimated_distance=120.0)
+def test_create_flight_order_computes_crew_weight(client, pilot_user_token, authz, operational_entities) -> None:
+    response = _create_flight_order(client, pilot_user_token, authz, operational_entities, estimated_distance=120.0)
     assert response.status_code == 200
     body = response.json()
     assert body["crew_weight"] == 150
@@ -52,60 +53,60 @@ def test_create_flight_order_computes_crew_weight(client, planner_token, authz, 
 
 
 def test_reject_when_helicopter_inspection_expired(
-    client, db_session, planner_token, authz, operational_entities
+    client, db_session, pilot_user_token, authz, operational_entities
 ) -> None:
     helicopter = db_session.get(Helicopter, operational_entities["helicopter_id"])
     assert helicopter is not None
     helicopter.inspection_valid_until = date.today() - timedelta(days=1)
     db_session.commit()
 
-    response = _create_flight_order(client, planner_token, authz, operational_entities)
+    response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
     assert response.status_code == 400
     assert response.json()["detail"] == "Helicopter inspection expired"
 
 
-def test_reject_when_pilot_license_expired(client, db_session, planner_token, authz, operational_entities) -> None:
+def test_reject_when_pilot_license_expired(client, db_session, pilot_user_token, authz, operational_entities) -> None:
     pilot = db_session.get(CrewMember, operational_entities["pilot_id"])
     assert pilot is not None
     pilot.license_valid_until = date.today() - timedelta(days=1)
     db_session.commit()
 
-    response = _create_flight_order(client, planner_token, authz, operational_entities)
+    response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
     assert response.status_code == 400
     assert response.json()["detail"] == "Pilot license expired"
 
 
-def test_reject_when_crew_training_expired(client, db_session, planner_token, authz, operational_entities) -> None:
+def test_reject_when_crew_training_expired(client, db_session, pilot_user_token, authz, operational_entities) -> None:
     observer = db_session.get(CrewMember, operational_entities["observer_id"])
     assert observer is not None
     observer.training_valid_until = date.today() - timedelta(days=1)
     db_session.commit()
 
-    response = _create_flight_order(client, planner_token, authz, operational_entities)
+    response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
     assert response.status_code == 400
     assert response.json()["detail"] == "Crew training expired"
 
 
-def test_reject_when_crew_weight_exceeds_limit(client, db_session, planner_token, authz, operational_entities) -> None:
+def test_reject_when_crew_weight_exceeds_limit(client, db_session, pilot_user_token, authz, operational_entities) -> None:
     helicopter = db_session.get(Helicopter, operational_entities["helicopter_id"])
     assert helicopter is not None
     helicopter.max_crew_weight = 120
     db_session.commit()
 
-    response = _create_flight_order(client, planner_token, authz, operational_entities)
+    response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
     assert response.status_code == 400
     assert response.json()["detail"] == "Crew weight exceeds helicopter limit"
 
 
 def test_reject_when_estimated_distance_exceeds_range(
-    client, db_session, planner_token, authz, operational_entities
+    client, db_session, pilot_user_token, authz, operational_entities
 ) -> None:
     helicopter = db_session.get(Helicopter, operational_entities["helicopter_id"])
     assert helicopter is not None
     helicopter.range_km = 50
     db_session.commit()
 
-    response = _create_flight_order(client, planner_token, authz, operational_entities, estimated_distance=75.0)
+    response = _create_flight_order(client, pilot_user_token, authz, operational_entities, estimated_distance=75.0)
     assert response.status_code == 400
     assert response.json()["detail"] == "Estimated distance exceeds range"
 
@@ -228,31 +229,18 @@ def test_preview_route_blocks_when_distance_exceeds_helicopter_range(
 
 
 def test_preview_and_create_order_are_consistent(
-    client, planner_token, authz, operational_entities
+    client, pilot_user_token, authz, operational_entities
 ) -> None:
     ids = operational_entities
-    op1_id = _create_planned_operation(
-        client,
-        planner_token,
-        authz,
-        "PRJ-PREVIEW-CREATE-1",
-        [[21.01, 52.11], [21.04, 52.13], [21.06, 52.14]],
-    )
-    op2_id = _create_planned_operation(
-        client,
-        planner_token,
-        authz,
-        "PRJ-PREVIEW-CREATE-2",
-        [[21.08, 52.16], [21.10, 52.18], [21.12, 52.19]],
-    )
+    operation_ids = [ids["approved_operation_id"]]
     preview_response = client.post(
         "/api/flight-orders/preview",
-        headers=authz(planner_token),
+        headers=authz(pilot_user_token),
         json={
             "start_site_id": ids["site_a_id"],
             "end_site_id": ids["site_b_id"],
             "helicopter_id": ids["helicopter_id"],
-            "planned_operation_ids": [op1_id, op2_id],
+            "planned_operation_ids": operation_ids,
             "strategy": "optimized",
         },
     )
@@ -262,11 +250,12 @@ def test_preview_and_create_order_are_consistent(
 
     create_response = client.post(
         "/api/flight-orders",
-        headers=authz(planner_token),
+        headers=authz(pilot_user_token),
         json={
-            "pilot_id": ids["pilot_id"],
+            "planned_start": "2026-04-01T09:00:00Z",
+            "planned_end": "2026-04-01T10:00:00Z",
             "helicopter_id": ids["helicopter_id"],
-            "crew_ids": [ids["pilot_id"], ids["observer_id"]],
+            "crew_ids": [ids["observer_id"]],
             "start_site_id": ids["site_a_id"],
             "end_site_id": ids["site_b_id"],
             "planned_operation_ids": ordered_operation_ids,
@@ -418,3 +407,61 @@ def test_optimize_route_requires_authentication(client, operational_entities) ->
         },
     )
     assert response.status_code == 401
+
+
+def test_create_flight_order_autofills_pilot_from_logged_user(
+    client, pilot_user_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    response = client.post(
+        "/api/flight-orders",
+        headers=authz(pilot_user_token),
+        json={
+            "planned_start": "2026-04-01T09:00:00Z",
+            "planned_end": "2026-04-01T10:00:00Z",
+            "pilot_id": ids["observer_id"],
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"]],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["pilot_id"] == ids["pilot_id"]
+
+
+def test_create_flight_order_rejects_non_pilot_role(client, planner_token, authz, operational_entities) -> None:
+    ids = operational_entities
+    response = client.post(
+        "/api/flight-orders",
+        headers=authz(planner_token),
+        json={
+            "planned_start": "2026-04-01T09:00:00Z",
+            "planned_end": "2026-04-01T10:00:00Z",
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"]],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert response.status_code == 403
+
+
+def test_update_rejects_completion_without_actual_dates(
+    client, pilot_user_token, authz, operational_entities
+) -> None:
+    create_response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
+    assert create_response.status_code == 200
+    order_id = create_response.json()["id"]
+
+    response = client.patch(
+        f"/api/flight-orders/{order_id}",
+        headers=authz(pilot_user_token),
+        json={"status": 5},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "actual_start and actual_end are required before status 5 or 6"
