@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from aero.models.enums import FlightOrderStatus
 from aero.schemas.common import ORMModel
@@ -18,6 +18,12 @@ class FlightOrderCreate(ORMModel):
     planned_operation_ids: list[int] = Field(min_length=1)
     estimated_distance: float
 
+    @model_validator(mode="after")
+    def validate_planned_time_order(self) -> "FlightOrderCreate":
+        if self.planned_end <= self.planned_start:
+            raise ValueError("planned_end must be later than planned_start")
+        return self
+
 
 class FlightOrderUpdate(ORMModel):
     planned_start: datetime | None = None
@@ -32,6 +38,22 @@ class FlightOrderUpdate(ORMModel):
     estimated_distance: float | None = None
     status: FlightOrderStatus | None = None
     planned_operation_ids: list[int] | None = None
+
+    @model_validator(mode="after")
+    def validate_time_order_for_provided_pairs(self) -> "FlightOrderUpdate":
+        if (
+            self.planned_start is not None
+            and self.planned_end is not None
+            and self.planned_end <= self.planned_start
+        ):
+            raise ValueError("planned_end must be later than planned_start")
+        if (
+            self.actual_start is not None
+            and self.actual_end is not None
+            and self.actual_end <= self.actual_start
+        ):
+            raise ValueError("actual_end must be later than actual_start")
+        return self
 
 
 class FlightOrderRead(ORMModel):

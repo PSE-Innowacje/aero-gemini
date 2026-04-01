@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from itertools import pairwise
 from math import isfinite
 from time import monotonic
@@ -201,6 +201,33 @@ def validate_flight_order_status_transition(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="actual_start and actual_end are required before status 5 or 6",
         )
+
+
+def _as_utc_timestamp(value: datetime) -> float:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC).timestamp()
+    return value.astimezone(UTC).timestamp()
+
+
+def validate_flight_order_time_order(
+    *,
+    planned_start: datetime | None,
+    planned_end: datetime | None,
+    actual_start: datetime | None = None,
+    actual_end: datetime | None = None,
+) -> None:
+    if planned_start is not None and planned_end is not None:
+        if _as_utc_timestamp(planned_end) <= _as_utc_timestamp(planned_start):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="planned_end must be later than planned_start",
+            )
+    if actual_start is not None and actual_end is not None:
+        if _as_utc_timestamp(actual_end) <= _as_utc_timestamp(actual_start):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="actual_end must be later than actual_start",
+            )
 
 
 def _lonlat_points_from_route_geometry(route_geometry: dict[str, Any] | None) -> list[tuple[float, float]]:

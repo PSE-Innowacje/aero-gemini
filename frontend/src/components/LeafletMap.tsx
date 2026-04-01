@@ -15,15 +15,20 @@ const defaultIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-const operationIcon = new L.Icon({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [18, 30],
-  iconAnchor: [9, 30],
-  popupAnchor: [1, -26],
-  shadowSize: [30, 30],
-  className: 'leaflet-marker-operation',
+const siteIcon = L.divIcon({
+  className: 'leaflet-marker-site',
+  html: '<span class="marker-dot"></span>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+  popupAnchor: [0, -10],
+});
+
+const operationDotIcon = L.divIcon({
+  className: 'leaflet-marker-operation-dot',
+  html: '<span class="marker-dot"></span>',
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
+  popupAnchor: [0, -8],
 });
 
 const highlightIcon = new L.Icon({
@@ -122,7 +127,11 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     markersRef.current.forEach(m => m.remove());
     markersRef.current = markers.map(m => {
       const isSelected = selectedMarkerId === m.id;
-      const markerIcon = m.markerType === 'operation' ? operationIcon : defaultIcon;
+      const markerIcon = m.markerType === 'operation'
+        ? operationDotIcon
+        : m.markerType === 'site'
+          ? siteIcon
+          : defaultIcon;
       const marker = L.marker([m.lat, m.lng], {
         icon: isSelected ? highlightIcon : markerIcon,
         zIndexOffset: isSelected ? 1000 : 0,

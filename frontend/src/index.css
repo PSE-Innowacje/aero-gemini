@@ -114,3 +114,29 @@ All colors MUST be HSL.
 .leaflet-marker-operation {
   filter: hue-rotate(315deg) saturate(2) brightness(1.05);
 }
+
+.leaflet-marker-site,
+.leaflet-marker-operation-dot {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.leaflet-marker-site .marker-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #1d4ed8;
+}
+
+.leaflet-marker-operation-dot .marker-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #f97316;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #c2410c;
+}

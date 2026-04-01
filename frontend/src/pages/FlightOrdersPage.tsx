@@ -37,6 +37,7 @@ import {
   buildFlightOrderPolylinePositions,
   buildFlightPreviewPolylinePositions,
   buildFlightPreviewRouteVisuals,
+  buildFlightPreviewRouteVisualsFromOrderedOperations,
 } from '@/lib/flightOrderRoute';
 import { useAuthStore } from '@/store/authStore';
 
@@ -69,6 +70,44 @@ const getAllowedStatusOptions = (
 
   if (role === 'ADMIN') return [1, 2, 3, 4, 5, 6, 7];
   return [currentStatus];
+};
+
+const toLocalDateTimeValue = (value?: string): string => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value.includes('T') ? value.slice(0, 16) : '';
+  }
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const hours = String(parsed.getHours()).padStart(2, '0');
+  const minutes = String(parsed.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const getDatePart = (value: string): string => {
+  const normalized = toLocalDateTimeValue(value);
+  if (!normalized.includes('T')) return '';
+  return normalized.split('T')[0] ?? '';
+};
+
+const getTimePart = (value: string): string => {
+  const normalized = toLocalDateTimeValue(value);
+  if (!normalized.includes('T')) return '';
+  return normalized.split('T')[1] ?? '';
+};
+
+const mergeDateTimeParts = (
+  currentValue: string,
+  patch: { date?: string; time?: string }
+): string => {
+  const normalized = toLocalDateTimeValue(currentValue);
+  const [currentDate = '', currentTime = ''] = normalized ? normalized.split('T') : ['', ''];
+  const nextDate = patch.date ?? currentDate;
+  const nextTime = patch.time ?? currentTime;
+  if (!nextDate) return '';
+  return `${nextDate}T${nextTime || '00:00'}`;
 };
 
 const FlightOrdersPage: React.FC = () => {
@@ -246,6 +285,33 @@ const FlightOrdersPage: React.FC = () => {
   const previewOperationIds = previewRoute?.orderedOperationIds?.length
     ? previewRoute.orderedOperationIds
     : form.operationIds;
+  const previewOrderedOperations = previewRoute?.orderedOperations ?? [];
+
+  const formPreviewRouteVisuals = useMemo(() => {
+    if (previewOrderedOperations.length > 0) {
+      return buildFlightPreviewRouteVisualsFromOrderedOperations(
+        form.startSiteId,
+        form.endSiteId,
+        previewOrderedOperations,
+        sites,
+        operations
+      );
+    }
+    return buildFlightPreviewRouteVisuals(
+      form.startSiteId,
+      form.endSiteId,
+      previewOperationIds,
+      sites,
+      operations
+    );
+  }, [
+    form.startSiteId,
+    form.endSiteId,
+    previewOrderedOperations,
+    previewOperationIds,
+    sites,
+    operations,
+  ]);
 
   const formPreviewMarkers: MapMarker[] = useMemo(() => {
     if (!form.startSiteId || !form.endSiteId) return [];
@@ -259,31 +325,17 @@ const FlightOrdersPage: React.FC = () => {
         popup: site!.name,
         markerType: 'site' as const,
       }));
-    const routeVisuals = buildFlightPreviewRouteVisuals(
-      form.startSiteId,
-      form.endSiteId,
-      previewOperationIds,
-      sites,
-      operations
-    );
-    const operationMarkers = routeVisuals?.operationMarkers ?? [];
+    const operationMarkers = formPreviewRouteVisuals?.operationMarkers ?? [];
     return [...siteMarkers, ...operationMarkers];
-  }, [form.startSiteId, form.endSiteId, previewOperationIds, sites, operations]);
+  }, [form.startSiteId, form.endSiteId, sites, formPreviewRouteVisuals]);
 
   const formPreviewPolylines: MapPolyline[] = useMemo(() => {
-    const routeVisuals = buildFlightPreviewRouteVisuals(
-      form.startSiteId,
-      form.endSiteId,
-      previewOperationIds,
-      sites,
-      operations
-    );
-    if (routeVisuals) {
+    if (formPreviewRouteVisuals) {
       return [
-        ...routeVisuals.transitPolylines
+        ...formPreviewRouteVisuals.transitPolylines
           .filter((positions) => positions.length >= 2)
           .map((positions) => ({ positions, color: '#0f766e', weight: 4 })),
-        ...routeVisuals.operationPolylines
+        ...formPreviewRouteVisuals.operationPolylines
           .filter((positions) => positions.length >= 2)
           .map((positions) => ({ positions, color: '#f97316', weight: 5 })),
       ];
@@ -298,7 +350,7 @@ const FlightOrdersPage: React.FC = () => {
     );
     if (!positions || positions.length < 2) return [];
     return [{ positions, color: '#0f766e', weight: 4 }];
-  }, [form.startSiteId, form.endSiteId, previewOperationIds, sites, operations]);
+  }, [form.startSiteId, form.endSiteId, previewOperationIds, sites, operations, formPreviewRouteVisuals]);
 
   const previewCenter: [number, number] =
     formPreviewMarkers.length > 0 ? [formPreviewMarkers[0].lat, formPreviewMarkers[0].lng] : [50.06, 19.94];
@@ -307,6 +359,22 @@ const FlightOrdersPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.plannedStart && form.plannedEnd && new Date(form.plannedEnd) <= new Date(form.plannedStart)) {
+      toast({
+        title: 'Nieprawidlowe daty planowane',
+        description: 'Czas ladowania musi byc pozniejszy niz czas startu.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (form.actualStart && form.actualEnd && new Date(form.actualEnd) <= new Date(form.actualStart)) {
+      toast({
+        title: 'Nieprawidlowe daty rzeczywiste',
+        description: 'Rzeczywisty czas ladowania musi byc pozniejszy niz rzeczywisty czas startu.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (!editing && form.operationIds.length === 0) {
       toast({ title: 'Wybierz co najmniej jedną operację', variant: 'destructive' });
       return;
@@ -482,12 +550,42 @@ const FlightOrdersPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-foreground">Data i godzina planowanego startu</label>
-                <Input type="datetime-local" value={form.plannedStart} onChange={e => setForm(f => ({ ...f, plannedStart: e.target.value }))} required />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={getDatePart(form.plannedStart)}
+                    onChange={e => setForm(f => ({ ...f, plannedStart: mergeDateTimeParts(f.plannedStart, { date: e.target.value }) }))}
+                    required
+                  />
+                  <Input
+                    type="time"
+                    step={300}
+                    value={getTimePart(form.plannedStart)}
+                    onChange={e => setForm(f => ({ ...f, plannedStart: mergeDateTimeParts(f.plannedStart, { time: e.target.value }) }))}
+                    required
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">Wymagane.</p>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-foreground">Data i godzina planowanego ladowania</label>
-                <Input type="datetime-local" value={form.plannedEnd} onChange={e => setForm(f => ({ ...f, plannedEnd: e.target.value }))} required />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={getDatePart(form.plannedEnd)}
+                    min={getDatePart(form.plannedStart) || undefined}
+                    onChange={e => setForm(f => ({ ...f, plannedEnd: mergeDateTimeParts(f.plannedEnd, { date: e.target.value }) }))}
+                    required
+                  />
+                  <Input
+                    type="time"
+                    step={300}
+                    value={getTimePart(form.plannedEnd)}
+                    min={getDatePart(form.plannedEnd) && getDatePart(form.plannedEnd) === getDatePart(form.plannedStart) ? getTimePart(form.plannedStart) || undefined : undefined}
+                    onChange={e => setForm(f => ({ ...f, plannedEnd: mergeDateTimeParts(f.plannedEnd, { time: e.target.value }) }))}
+                    required
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">Wymagane.</p>
               </div>
             </div>
@@ -500,12 +598,38 @@ const FlightOrdersPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego startu</label>
-                    <Input type="datetime-local" value={form.actualStart} onChange={e => setForm(f => ({ ...f, actualStart: e.target.value }))} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="date"
+                        value={getDatePart(form.actualStart)}
+                        onChange={e => setForm(f => ({ ...f, actualStart: mergeDateTimeParts(f.actualStart, { date: e.target.value }) }))}
+                      />
+                      <Input
+                        type="time"
+                        step={300}
+                        value={getTimePart(form.actualStart)}
+                        onChange={e => setForm(f => ({ ...f, actualStart: mergeDateTimeParts(f.actualStart, { time: e.target.value }) }))}
+                      />
+                    </div>
                     <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-foreground">Data i godzina rzeczywistego ladowania</label>
-                    <Input type="datetime-local" value={form.actualEnd} onChange={e => setForm(f => ({ ...f, actualEnd: e.target.value }))} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="date"
+                        value={getDatePart(form.actualEnd)}
+                        min={getDatePart(form.actualStart) || undefined}
+                        onChange={e => setForm(f => ({ ...f, actualEnd: mergeDateTimeParts(f.actualEnd, { date: e.target.value }) }))}
+                      />
+                      <Input
+                        type="time"
+                        step={300}
+                        value={getTimePart(form.actualEnd)}
+                        min={getDatePart(form.actualEnd) && getDatePart(form.actualEnd) === getDatePart(form.actualStart) ? getTimePart(form.actualStart) || undefined : undefined}
+                        onChange={e => setForm(f => ({ ...f, actualEnd: mergeDateTimeParts(f.actualEnd, { time: e.target.value }) }))}
+                      />
+                    </div>
                     <p className="text-xs text-muted-foreground">Wymagane przed ustawieniem statusu 5 lub 6.</p>
                   </div>
                 </div>

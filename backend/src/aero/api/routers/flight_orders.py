@@ -30,6 +30,7 @@ from aero.services.flight_orders import (
     preview_flight_order,
     resolve_pilot_from_logged_user,
     validate_flight_order_status_transition,
+    validate_flight_order_time_order,
     validate_flight_order_constraints,
     validate_selected_planned_operations,
 )
@@ -161,6 +162,10 @@ def create_flight_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.ADMIN, UserRole.PILOT)),
 ) -> FlightOrderRead:
+    validate_flight_order_time_order(
+        planned_start=payload.planned_start,
+        planned_end=payload.planned_end,
+    )
     if user.role == UserRole.PILOT and payload.pilot_id is not None:
         logger.bind(event="flight_order_api", action="create").warning("pilot_id_ignored_in_create_payload")
     if user.role == UserRole.PILOT:
@@ -262,8 +267,16 @@ def update_flight_order(
     data = payload.model_dump(exclude_unset=True, exclude={"planned_operation_ids", "crew_ids"})
 
     target_status = payload.status if payload.status is not None else order.status
+    target_planned_start = payload.planned_start if payload.planned_start is not None else order.planned_start
+    target_planned_end = payload.planned_end if payload.planned_end is not None else order.planned_end
     target_actual_start = payload.actual_start if payload.actual_start is not None else order.actual_start
     target_actual_end = payload.actual_end if payload.actual_end is not None else order.actual_end
+    validate_flight_order_time_order(
+        planned_start=target_planned_start,
+        planned_end=target_planned_end,
+        actual_start=target_actual_start,
+        actual_end=target_actual_end,
+    )
     validate_flight_order_status_transition(
         current_status=order.status,
         new_status=target_status,
