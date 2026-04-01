@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchFlightOrders,
   createFlightOrder,
+  deleteFlightOrder,
   updateFlightOrder,
   fetchHelicopters,
   fetchCrew,
@@ -19,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Eye, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Eye, AlertTriangle, Trash2 } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
 import { buildFlightOrderPolylinePositions, buildFlightPreviewPolylinePositions } from '@/lib/flightOrderRoute';
@@ -52,7 +53,7 @@ const getAllowedStatusOptions = (
     return [currentStatus];
   }
 
-  // ADMIN: read-only in scope of flight-order workflow.
+  if (role === 'ADMIN') return [1, 2, 3, 4, 5, 6, 7];
   return [currentStatus];
 };
 
@@ -97,12 +98,27 @@ const FlightOrdersPage: React.FC = () => {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['flightOrders'] }); setOpen(false); toast({ title: 'Zaktualizowano' }); },
     onError: (error: Error) => { toast({ title: 'Nie udało się zaktualizować zlecenia', description: error.message, variant: 'destructive' }); },
   });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteFlightOrder(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['flightOrders'] });
+      toast({ title: 'Usunieto zlecenie' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Nie udalo sie usunac zlecenia', description: error.message, variant: 'destructive' });
+    },
+  });
 
   const filtered = statusFilter === 'all' ? orders : orders.filter(o => o.status === Number(statusFilter));
 
   const getHelicopterName = (id: string) => helicopters.find(h => h.id === id)?.registration ?? id;
   const getPilotName = (id: string) => crew.find(c => c.id === id)?.name ?? id;
   const getSiteName = (id: string) => sites.find(s => s.id === id)?.name ?? id;
+  const loggedPilotId = useMemo(
+    () => crew.find(c => c.role === 'PILOT' && user?.email && c.email === user.email)?.id ?? '',
+    [crew, user?.email]
+  );
+  const effectivePilotId = editing ? form.pilotId : (loggedPilotId || form.pilotId);
 
   const openCreate = () => {
     setEditing(null);
@@ -146,18 +162,18 @@ const FlightOrdersPage: React.FC = () => {
   };
 
   const crewWeight = useMemo(() => {
-    const pilot = crew.find(c => c.id === form.pilotId);
+    const pilot = crew.find(c => c.id === effectivePilotId);
     const members = crew.filter(c => form.crewIds.includes(c.id));
     return (pilot?.weight ?? 0) + members.reduce((s, c) => s + c.weight, 0);
-  }, [form.pilotId, form.crewIds, crew]);
+  }, [effectivePilotId, form.crewIds, crew]);
 
   const helicopter = helicopters.find(h => h.id === form.helicopterId);
   const overweight = helicopter ? crewWeight > helicopter.maxWeight : false;
 
   const expiredLicenses = useMemo(() => {
-    const ids = [form.pilotId, ...form.crewIds];
+    const ids = [effectivePilotId, ...form.crewIds];
     return crew.filter(c => ids.includes(c.id) && new Date(c.licenseExpiry) < new Date());
-  }, [form.pilotId, form.crewIds, crew]);
+  }, [effectivePilotId, form.crewIds, crew]);
 
   useEffect(() => {
     if (!open) {
@@ -296,7 +312,7 @@ const FlightOrdersPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Zlecenia na lot</h1>
-        {user?.role === 'PILOT' && (
+        {(user?.role === 'PILOT' || user?.role === 'ADMIN') && (
           <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Dodaj</Button>
         )}
       </div>
@@ -358,6 +374,16 @@ const FlightOrdersPage: React.FC = () => {
                 <TableCell className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => { setViewing(o); setDetailOpen(true); }}><Eye className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(o)}><Pencil className="h-4 w-4" /></Button>
+                  {user?.role === 'ADMIN' && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteMut.mutate(o.id)}
+                      disabled={deleteMut.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -393,7 +419,7 @@ const FlightOrdersPage: React.FC = () => {
               </Select>
             </div>
 
-            {editing && (
+            {(editing || user?.role === 'ADMIN') && (
               <div>
                 <label className="text-sm font-medium text-foreground">Pilot</label>
                 <Select value={form.pilotId} onValueChange={v => setForm(f => ({ ...f, pilotId: v }))}>
@@ -406,14 +432,14 @@ const FlightOrdersPage: React.FC = () => {
                 </Select>
               </div>
             )}
-            {!editing && (
+            {!editing && user?.role !== 'ADMIN' && (
               <p className="text-xs text-muted-foreground">Pilot jest uzupełniany automatycznie na podstawie zalogowanego użytkownika.</p>
             )}
 
             <div>
               <label className="text-sm font-medium text-foreground">Załoga</label>
               <div className="flex flex-wrap gap-2 mt-1">
-                {crew.filter(c => c.id !== form.pilotId).map(c => (
+                {crew.filter(c => c.id !== effectivePilotId).map(c => (
                   <Badge key={c.id} className={`cursor-pointer ${form.crewIds.includes(c.id) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`} onClick={() => toggleMulti('crewIds', c.id)}>
                     {c.name} ({c.weight}kg)
                   </Badge>
@@ -517,7 +543,10 @@ const FlightOrdersPage: React.FC = () => {
             <Button
               type="submit"
               className="w-full"
-              disabled={!editing && (isRangeExceeded || (canPreviewRoute && isPreviewRouteError))}
+              disabled={
+                (!editing && (isRangeExceeded || (canPreviewRoute && isPreviewRouteError))) ||
+                (!editing && user?.role === 'ADMIN' && !form.pilotId)
+              }
             >
               {editing ? 'Zapisz' : 'Dodaj'}
             </Button>

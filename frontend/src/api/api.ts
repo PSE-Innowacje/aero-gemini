@@ -540,6 +540,7 @@ export const createFlightOrder = async (data: Omit<FlightOrder, 'id'>): Promise<
   const payload = {
     planned_start: data.plannedStart || null,
     planned_end: data.plannedEnd || null,
+    ...(data.pilotId ? { pilot_id: Number(data.pilotId) } : {}),
     helicopter_id: Number(data.helicopterId),
     crew_ids: data.crewIds.map(Number),
     start_site_id: Number(data.startSiteId),
@@ -563,4 +564,8 @@ export const updateFlightOrder = async (id: string, data: Partial<FlightOrder>):
   if (data.status !== undefined) payload.status = data.status;
   if (data.operationIds !== undefined) payload.planned_operation_ids = data.operationIds.map(Number);
   return toUiOrder(await request(`/flight-orders/${id}`, 'PATCH', payload));
+};
+
+export const deleteFlightOrder = async (id: string): Promise<void> => {
+  await request<void>(`/flight-orders/${id}`, 'DELETE');
 };

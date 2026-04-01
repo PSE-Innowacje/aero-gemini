@@ -451,6 +451,42 @@ def test_create_flight_order_rejects_non_pilot_role(client, planner_token, authz
     assert response.status_code == 403
 
 
+def test_admin_can_create_flight_order_with_explicit_pilot(
+    client, admin_token, authz, operational_entities
+) -> None:
+    ids = operational_entities
+    response = client.post(
+        "/api/flight-orders",
+        headers=authz(admin_token),
+        json={
+            "planned_start": "2026-04-01T09:00:00Z",
+            "planned_end": "2026-04-01T10:00:00Z",
+            "pilot_id": ids["pilot_id"],
+            "helicopter_id": ids["helicopter_id"],
+            "crew_ids": [ids["observer_id"]],
+            "start_site_id": ids["site_a_id"],
+            "end_site_id": ids["site_b_id"],
+            "planned_operation_ids": [ids["approved_operation_id"]],
+            "estimated_distance": 100.0,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["pilot_id"] == ids["pilot_id"]
+
+
+def test_admin_can_delete_flight_order(client, admin_token, pilot_user_token, authz, operational_entities) -> None:
+    create_response = _create_flight_order(client, pilot_user_token, authz, operational_entities)
+    assert create_response.status_code == 200
+    order_id = create_response.json()["id"]
+
+    delete_response = client.delete(f"/api/flight-orders/{order_id}", headers=authz(admin_token))
+    assert delete_response.status_code == 204
+
+    list_response = client.get("/api/flight-orders", headers=authz(admin_token))
+    assert list_response.status_code == 200
+    assert all(item["id"] != order_id for item in list_response.json())
+
+
 def test_update_rejects_completion_without_actual_dates(
     client, pilot_user_token, authz, operational_entities
 ) -> None:

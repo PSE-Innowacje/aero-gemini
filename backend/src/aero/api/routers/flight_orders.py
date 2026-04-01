@@ -2,9 +2,11 @@ from typing import cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aero.api.deps import require_roles
+from aero.models.crew_member import CrewMember
 from aero.core.database import get_db
 from aero.models.enums import FlightOrderStatus, UserRole, WorkflowStatus
 from aero.models.flight_order import FlightOrder
@@ -157,16 +159,28 @@ def optimize_flight_order_route(
 def create_flight_order(
     payload: FlightOrderCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.PILOT)),
+    user: User = Depends(require_roles(UserRole.ADMIN, UserRole.PILOT)),
 ) -> FlightOrderRead:
-    if payload.pilot_id is not None:
+    if user.role == UserRole.PILOT and payload.pilot_id is not None:
         logger.bind(event="flight_order_api", action="create").warning("pilot_id_ignored_in_create_payload")
-    pilot = resolve_pilot_from_logged_user(db, user)
+    if user.role == UserRole.PILOT:
+        pilot = resolve_pilot_from_logged_user(db, user)
+        pilot_id_for_validation = pilot.id
+    else:
+        if payload.pilot_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="pilot_id is required for ADMIN",
+            )
+        pilot_id_for_validation = payload.pilot_id
+        pilot = db.scalar(select(CrewMember).where(CrewMember.id == pilot_id_for_validation))
+        if pilot is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Related entity not found")
     logger.bind(
         event="flight_order_api",
         action="create",
         helicopter_id=payload.helicopter_id,
-        pilot_id=pilot.id,
+        pilot_id=pilot_id_for_validation,
         crew_count=len(payload.crew_ids),
     ).info("flight_order_create_started")
     planned_operations = cast(
@@ -178,7 +192,7 @@ def create_flight_order(
         validate_flight_order_constraints(
         db=db,
         helicopter_id=payload.helicopter_id,
-        pilot_id=pilot.id,
+        pilot_id=pilot_id_for_validation,
         crew_ids=payload.crew_ids,
         estimated_distance=payload.estimated_distance,
         ),
@@ -296,3 +310,21 @@ def update_flight_order(
         db.refresh(order)
     logger.bind(event="flight_order_api", action="update", order_id=order.id).info("flight_order_update_completed")
     return _to_read(order)
+
+
+@router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_flight_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles(UserRole.ADMIN)),
+) -> None:
+    repo = BaseRepository(db, FlightOrder)
+    order = repo.get(order_id)
+    if not order:
+        logger.bind(event="flight_order_api", action="delete", order_id=order_id).warning(
+            "flight_order_delete_not_found"
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flight order not found")
+    db.delete(order)
+    db.commit()
+    logger.bind(event="flight_order_api", action="delete", order_id=order_id).info("flight_order_delete_completed")
