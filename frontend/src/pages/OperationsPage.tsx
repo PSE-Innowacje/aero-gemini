@@ -695,15 +695,22 @@ const OperationsPage: React.FC = () => {
               </div>
 
               {(isSupervisor && viewing.status === 1) && (
-                <div className="flex gap-2">
-                  <Button size="sm" variant="destructive" onClick={() => requestStatusChange(viewing.id, 2)} disabled={updateMut.isPending}>Odrzuc</Button>
-                  <Button
-                    size="sm"
-                    onClick={() => requestStatusChange(viewing.id, 3)}
-                    disabled={!viewing.plannedDateFrom || !viewing.plannedDateTo || updateMut.isPending}
-                  >
-                    Potwierdz do planu
-                  </Button>
+                <div className="space-y-1">
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="destructive" onClick={() => requestStatusChange(viewing.id, 2)} disabled={updateMut.isPending}>Odrzuc</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => requestStatusChange(viewing.id, 3)}
+                      disabled={!viewing.plannedDateFrom || !viewing.plannedDateTo || updateMut.isPending}
+                    >
+                      Potwierdz do planu
+                    </Button>
+                  </div>
+                  {(!viewing.plannedDateFrom || !viewing.plannedDateTo) && (
+                    <p className="text-xs text-muted-foreground">
+                      Potwierdzenie wymaga uzupelnienia planowanej daty wykonania operacji.
+                    </p>
+                  )}
                 </div>
               )}
 
