@@ -128,6 +128,8 @@ const FlightOrdersPage: React.FC = () => {
   const [viewing, setViewing] = useState<FlightOrder | null>(null);
   const [handledFocusOrderId, setHandledFocusOrderId] = useState<string>('');
   const [pendingDeleteOrder, setPendingDeleteOrder] = useState<FlightOrder | null>(null);
+  const [pendingCompletionOrder, setPendingCompletionOrder] = useState<FlightOrder | null>(null);
+  const [completedOperationIds, setCompletedOperationIds] = useState<string[]>([]);
   const [form, setForm] = useState({
     plannedStart: '', plannedEnd: '', actualStart: '', actualEnd: '', helicopterId: '', pilotId: '', crewIds: [] as string[],
     landingSiteIds: [] as string[], operationIds: [] as string[], status: 1 as FlightOrderStatus,
@@ -473,7 +475,18 @@ const FlightOrdersPage: React.FC = () => {
       });
       return;
     }
+    if (nextStatus === 6) {
+      setPendingCompletionOrder(order);
+      setCompletedOperationIds([...order.operationIds]);
+      return;
+    }
     updateMut.mutate({ id: order.id, status: nextStatus });
+  };
+
+  const toggleCompletedOperation = (operationId: string) => {
+    setCompletedOperationIds((current) =>
+      current.includes(operationId) ? current.filter((id) => id !== operationId) : [...current, operationId]
+    );
   };
 
   // Map data for detail view
@@ -965,6 +978,60 @@ const FlightOrdersPage: React.FC = () => {
               }}
             >
               Usun
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(pendingCompletionOrder)}
+        onOpenChange={(openValue) => {
+          if (!openValue) {
+            setPendingCompletionOrder(null);
+            setCompletedOperationIds([]);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Oznacz wykonanie operacji</AlertDialogTitle>
+            <AlertDialogDescription>
+              Przy statusie "Zrealizowane w calosci" wybierz operacje wykonane. Niewybrane zostana oznaczone jako niezrealizowane.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="max-h-52 overflow-auto rounded-md border p-2">
+            {pendingCompletionOrder?.operationIds.length ? (
+              <div className="space-y-2">
+                {pendingCompletionOrder.operationIds.map((operationId) => (
+                  <label key={operationId} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={completedOperationIds.includes(operationId)}
+                      onChange={() => toggleCompletedOperation(operationId)}
+                    />
+                    <span>{operations.find((item) => item.id === operationId)?.projectCode ?? `Operacja #${operationId}`}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Brak powiazanych operacji.</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingCompletionOrder) return;
+                updateMut.mutate({
+                  id: pendingCompletionOrder.id,
+                  status: 6,
+                  performedOperationIds: completedOperationIds,
+                });
+                setPendingCompletionOrder(null);
+                setCompletedOperationIds([]);
+              }}
+            >
+              Zapisz
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

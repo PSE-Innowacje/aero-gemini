@@ -45,6 +45,39 @@ def _mark_operations_as_scheduled(planned_operations: list) -> None:
             operation.status = WorkflowStatus.SCHEDULED
 
 
+def _sync_linked_operations_statuses_after_flight_order_update(
+    *,
+    order: FlightOrder,
+    target_status: FlightOrderStatus,
+    performed_operation_ids: list[int] | None,
+) -> None:
+    if target_status == FlightOrderStatus.PARTIALLY_COMPLETED:
+        for operation in order.planned_operations:
+            operation.status = WorkflowStatus.IN_PROGRESS
+        return
+
+    if target_status != FlightOrderStatus.COMPLETED:
+        return
+
+    linked_operation_ids = {operation.id for operation in order.planned_operations}
+    if not linked_operation_ids:
+        return
+    if performed_operation_ids is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Select which linked operations were completed and which were not completed",
+        )
+    provided_operation_ids = set(performed_operation_ids)
+    unknown_ids = [operation_id for operation_id in performed_operation_ids if operation_id not in linked_operation_ids]
+    if unknown_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Some selected operations are not linked to this flight order",
+        )
+    for operation in order.planned_operations:
+        operation.status = WorkflowStatus.DONE if operation.id in provided_operation_ids else WorkflowStatus.REJECTED
+
+
 def _to_read(order: FlightOrder) -> FlightOrderRead:
     return FlightOrderRead.model_validate(
         {
@@ -274,7 +307,7 @@ def update_flight_order(
         )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flight order not found")
 
-    data = payload.model_dump(exclude_unset=True, exclude={"planned_operation_ids", "crew_ids"})
+    data = payload.model_dump(exclude_unset=True, exclude={"planned_operation_ids", "crew_ids", "performed_operation_ids"})
 
     target_status = payload.status if payload.status is not None else order.status
     target_planned_start = payload.planned_start if payload.planned_start is not None else order.planned_start
@@ -339,6 +372,15 @@ def update_flight_order(
     if payload.planned_operation_ids is not None:
         order.planned_operations = validate_selected_planned_operations(db, payload.planned_operation_ids)
         _mark_operations_as_scheduled(order.planned_operations)
+    _sync_linked_operations_statuses_after_flight_order_update(
+        order=order,
+        target_status=target_status,
+        performed_operation_ids=payload.performed_operation_ids,
+    )
+    if payload.planned_operation_ids is not None or target_status in {
+        FlightOrderStatus.PARTIALLY_COMPLETED,
+        FlightOrderStatus.COMPLETED,
+    }:
         db.commit()
         db.refresh(order)
     logger.bind(event="flight_order_api", action="update", order_id=order.id).info("flight_order_update_completed")

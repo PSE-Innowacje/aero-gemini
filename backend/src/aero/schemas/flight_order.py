@@ -39,6 +39,7 @@ class FlightOrderUpdate(ORMModel):
     actual_distance: float | None = None
     status: FlightOrderStatus | None = None
     planned_operation_ids: list[int] | None = None
+    performed_operation_ids: list[int] | None = None
 
     @model_validator(mode="after")
     def validate_time_order_for_provided_pairs(self) -> "FlightOrderUpdate":
