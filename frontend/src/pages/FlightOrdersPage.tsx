@@ -331,7 +331,13 @@ const FlightOrdersPage: React.FC = () => {
       <div className="flex gap-2 items-center">
         <span className="text-sm text-muted-foreground">Status:</span>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-40 justify-start [&>svg]:ml-auto">
+            <span className="truncate text-left">
+              {statusFilter === 'all'
+                ? 'Wszystkie'
+                : flightOrderStatusLabels[Number(statusFilter) as FlightOrderStatus]}
+            </span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Wszystkie</SelectItem>
             {([1, 2, 3, 4, 5, 6, 7] as FlightOrderStatus[]).map(s => (
@@ -370,8 +376,8 @@ const FlightOrdersPage: React.FC = () => {
                     value={String(o.status)}
                     onValueChange={v => handleInlineStatusChange(o, Number(v) as FlightOrderStatus)}
                   >
-                    <SelectTrigger className="w-40 h-8 text-xs" disabled={statusOptions.length <= 1}>
-                      <SelectValue />
+                    <SelectTrigger className="w-40 h-8 justify-start text-xs [&>svg]:ml-auto" disabled={statusOptions.length <= 1}>
+                      <span className="truncate text-left">{flightOrderStatusLabels[o.status]}</span>
                     </SelectTrigger>
                     <SelectContent>
                       {statusOptions.map(s => (
@@ -525,7 +531,7 @@ const FlightOrdersPage: React.FC = () => {
                   </Badge>
                 ))}
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">Wymagane. Widoczne sa operacje o statusie 3, posortowane po planowanej dacie.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Wymagane. Widoczne są operacje o statusie "Potwierdzone do planu", posortowane po planowanej dacie.</p>
             </div>
 
             <div className="p-3 rounded-md bg-muted space-y-1 text-sm">
