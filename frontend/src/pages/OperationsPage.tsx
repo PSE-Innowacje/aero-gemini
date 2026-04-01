@@ -36,7 +36,6 @@ const statusColors: Record<OperationStatus, string> = {
 
 const allStatuses: OperationStatus[] = [1, 2, 3, 4, 5, 6, 7];
 const plannerEditableStatuses: OperationStatus[] = [1, 2, 3, 4, 5];
-const plannerResignationStatuses: OperationStatus[] = [1, 3, 4];
 
 const activityOptions = [
   { value: 'ogledziny_wizualne', label: 'Oględziny wizualne' },
@@ -133,24 +132,27 @@ const OperationsPage: React.FC = () => {
   const isPilot = user?.role === 'PILOT';
 
   const createMut = useMutation({
-    mutationFn: ({ file }: { file: File }) =>
-      createOperationFromKml(
-        {
-          projectCode: form.projectCode,
-          shortDescription: form.shortDescription,
-          proposedDateFrom: form.proposedDateFrom || undefined,
-          proposedDateTo: form.proposedDateTo || undefined,
-          plannedDateFrom: form.plannedDateFrom || undefined,
-          plannedDateTo: form.plannedDateTo || undefined,
-          activities: form.activities,
-          extraInfo: form.extraInfo || undefined,
-          contacts: form.contactsRaw
-            .split(',')
-            .map((item) => item.trim())
-            .filter(Boolean),
-        },
-        file
-      ),
+    mutationFn: ({ file }: { file: File }) => {
+      const payload = {
+        projectCode: form.projectCode,
+        shortDescription: form.shortDescription,
+        proposedDateFrom: form.proposedDateFrom || undefined,
+        proposedDateTo: form.proposedDateTo || undefined,
+        activities: form.activities,
+        extraInfo: form.extraInfo || undefined,
+        contacts: form.contactsRaw
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        ...(!isPlanner
+          ? {
+              plannedDateFrom: form.plannedDateFrom || undefined,
+              plannedDateTo: form.plannedDateTo || undefined,
+            }
+          : {}),
+      };
+      return createOperationFromKml(payload, file);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['operations'] });
       setOpen(false);
@@ -414,11 +416,11 @@ const OperationsPage: React.FC = () => {
               <label className="text-sm font-medium text-foreground">Proponowane daty</label>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label htmlFor="proposed-date-from" className="text-sm text-foreground">Najwcześniej</label>
+                      <label htmlFor="proposed-date-from" className="text-xs text-foreground">Najwcześniej</label>
                   <Input id="proposed-date-from" aria-label="Proponowana data najwcześniej" type="date" value={form.proposedDateFrom} onChange={(e) => setForm((f) => ({ ...f, proposedDateFrom: e.target.value }))} />
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor="proposed-date-to" className="text-sm text-foreground">Najpóźniej</label>
+                      <label htmlFor="proposed-date-to" className="text-xs text-foreground">Najpóźniej</label>
                   <Input id="proposed-date-to" aria-label="Proponowana data najpóźniej" type="date" value={form.proposedDateTo} onChange={(e) => setForm((f) => ({ ...f, proposedDateTo: e.target.value }))} />
                 </div>
               </div>
@@ -426,38 +428,42 @@ const OperationsPage: React.FC = () => {
             {hasProposedDateRangeError && (
               <p className="text-xs text-destructive">Proponowana data od nie moze byc pozniej niz data do.</p>
             )}
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">Planowane daty</label>
-              <div className="grid grid-cols-2 gap-2">
+            {!isPlanner && (
+              <>
                 <div className="space-y-1">
-                  <label htmlFor="planned-date-from" className="text-sm text-foreground">Najwcześniej</label>
-                  <Input
-                    id="planned-date-from"
-                    aria-label="Planowana data najwcześniej"
-                    type="date"
-                    value={form.plannedDateFrom}
-                    onChange={(e) => setForm((f) => ({ ...f, plannedDateFrom: e.target.value }))}
-                    disabled={isPlanner}
-                  />
+                  <label className="text-sm font-medium text-foreground">Planowane daty</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                  <label htmlFor="planned-date-from" className="text-xs text-foreground">Najwcześniej</label>
+                      <Input
+                        id="planned-date-from"
+                        aria-label="Planowana data najwcześniej"
+                        type="date"
+                        value={form.plannedDateFrom}
+                        onChange={(e) => setForm((f) => ({ ...f, plannedDateFrom: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                  <label htmlFor="planned-date-to" className="text-xs text-foreground">Najpóźniej</label>
+                      <Input
+                        id="planned-date-to"
+                        aria-label="Planowana data najpóźniej"
+                        type="date"
+                        value={form.plannedDateTo}
+                        onChange={(e) => setForm((f) => ({ ...f, plannedDateTo: e.target.value }))}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label htmlFor="planned-date-to" className="text-sm text-foreground">Najpóźniej</label>
-                  <Input
-                    id="planned-date-to"
-                    aria-label="Planowana data najpóźniej"
-                    type="date"
-                    value={form.plannedDateTo}
-                    onChange={(e) => setForm((f) => ({ ...f, plannedDateTo: e.target.value }))}
-                    disabled={isPlanner}
-                  />
-                </div>
-              </div>
-            </div>
-            {isPlanner && (
-              <p className="text-xs text-muted-foreground">Planista nie moze edytowac planowanych dat i uwag po realizacji.</p>
+                {hasPlannedDateRangeError && (
+                  <p className="text-xs text-destructive">Planowana data od nie moze byc pozniej niz data do.</p>
+                )}
+              </>
             )}
-            {hasPlannedDateRangeError && (
-              <p className="text-xs text-destructive">Planowana data od nie moze byc pozniej niz data do.</p>
+            {isPlanner && (
+              <p className="text-xs text-muted-foreground">
+                Pola planowanych dat, statusu i uwag po realizacji sa ukryte dla planisty.
+              </p>
             )}
             <div className="space-y-1">
               <label htmlFor="extra-info" className="text-sm font-medium text-foreground">Dodatkowe informacje</label>
@@ -471,18 +477,21 @@ const OperationsPage: React.FC = () => {
             {invalidContacts.length > 0 && (
               <p className="text-xs text-destructive">Niepoprawne adresy: {invalidContacts.join(', ')}</p>
             )}
-            <div className="space-y-1">
-              <label htmlFor="post-realization-notes" className="text-sm font-medium text-foreground">Uwagi po realizacji</label>
-              <Textarea
-                id="post-realization-notes"
-                maxLength={500}
-                placeholder="Uwagi po realizacji"
-                value={form.postRealizationNotes}
-                onChange={(e) => setForm((f) => ({ ...f, postRealizationNotes: e.target.value }))}
-                disabled={isPlanner}
-              />
-            </div>
-            <p className="text-right text-xs text-muted-foreground">{form.postRealizationNotes.length}/500</p>
+            {!isPlanner && (
+              <>
+                <div className="space-y-1">
+                  <label htmlFor="post-realization-notes" className="text-sm font-medium text-foreground">Uwagi po realizacji</label>
+                  <Textarea
+                    id="post-realization-notes"
+                    maxLength={500}
+                    placeholder="Uwagi po realizacji"
+                    value={form.postRealizationNotes}
+                    onChange={(e) => setForm((f) => ({ ...f, postRealizationNotes: e.target.value }))}
+                  />
+                </div>
+                <p className="text-right text-xs text-muted-foreground">{form.postRealizationNotes.length}/500</p>
+              </>
+            )}
             {editing && (
               <>
                 <div className="space-y-1">
@@ -546,10 +555,6 @@ const OperationsPage: React.FC = () => {
                     Potwierdz do planu
                   </Button>
                 </div>
-              )}
-
-              {(isPlanner && plannerResignationStatuses.includes(viewing.status)) && (
-                <Button size="sm" variant="outline" onClick={() => requestStatusChange(viewing.id, 7)} disabled={updateMut.isPending}>Rezygnuj</Button>
               )}
 
               {(isPilot && viewing.status === 4) && (
