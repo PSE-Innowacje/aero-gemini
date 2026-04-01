@@ -204,7 +204,20 @@ const OperationsPage: React.FC = () => {
     },
   });
 
-  const filtered = statusFilter === 'all' ? operations : operations.filter((o) => o.status === Number(statusFilter));
+  const filtered = useMemo(() => {
+    const byStatus =
+      statusFilter === 'all' ? operations : operations.filter((operation) => operation.status === Number(statusFilter));
+
+    return [...byStatus].sort((a, b) => {
+      const aDate = a.plannedDateFrom?.trim() ?? '';
+      const bDate = b.plannedDateFrom?.trim() ?? '';
+
+      if (aDate && bDate) return aDate.localeCompare(bDate);
+      if (aDate) return -1;
+      if (bDate) return 1;
+      return a.id.localeCompare(b.id);
+    });
+  }, [operations, statusFilter]);
   const hasProjectCode = form.projectCode.trim().length > 0;
   const hasShortDescription = form.shortDescription.trim().length > 0;
 
@@ -345,7 +358,7 @@ const OperationsPage: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Planowane operacje lotnicze</h1>
+        <h1 className="text-2xl font-bold text-foreground">Lista operacji</h1>
         {(isPlanner || isSupervisor) && (
           <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Dodaj</Button>
         )}
@@ -369,10 +382,12 @@ const OperationsPage: React.FC = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Nr</TableHead>
-              <TableHead>Nr zlecenia/projektu</TableHead>
-              <TableHead>Opis</TableHead>
-              <TableHead>Czynności</TableHead>
-              <TableHead>Dystans (km)</TableHead>
+              <TableHead>Nr zlecenia</TableHead>
+              <TableHead>Rodzaj czynności</TableHead>
+              <TableHead>Proponowane: najwcześniej</TableHead>
+              <TableHead>Proponowane: najpóźniej</TableHead>
+              <TableHead>Planowane: najwcześniej</TableHead>
+              <TableHead>Planowane: najpóźniej</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24" />
             </TableRow>
@@ -382,9 +397,11 @@ const OperationsPage: React.FC = () => {
               <TableRow key={operation.id}>
                 <TableCell>{operation.id}</TableCell>
                 <TableCell className="font-medium">{operation.projectCode}</TableCell>
-                <TableCell className="max-w-[280px] truncate">{operation.shortDescription}</TableCell>
                 <TableCell>{operation.activities.map((value) => toActivityLabel(value)).join(', ') || '-'}</TableCell>
-                <TableCell>{operation.distanceKm}</TableCell>
+                <TableCell>{operation.proposedDateFrom || '-'}</TableCell>
+                <TableCell>{operation.proposedDateTo || '-'}</TableCell>
+                <TableCell>{operation.plannedDateFrom || '-'}</TableCell>
+                <TableCell>{operation.plannedDateTo || '-'}</TableCell>
                 <TableCell><Badge className={statusColors[operation.status]}>{operationStatusLabels[operation.status]}</Badge></TableCell>
                 <TableCell className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => { setViewing(operation); setDetailOpen(true); }}><Eye className="h-4 w-4" /></Button>
@@ -396,7 +413,7 @@ const OperationsPage: React.FC = () => {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
                   Brak operacji dla wybranego filtra.
                 </TableCell>
               </TableRow>

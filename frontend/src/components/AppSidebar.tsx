@@ -31,7 +31,7 @@ const adminItems: NavItem[] = [
 ];
 
 const planningItems: NavItem[] = [
-  { title: 'Planowane operacje', url: '/operations', icon: ClipboardList, roles: ['ADMIN', 'PLANNER', 'SUPERVISOR'] },
+  { title: 'Lista operacji', url: '/operations', icon: ClipboardList, roles: ['ADMIN', 'PLANNER', 'SUPERVISOR'] },
 ];
 
 const orderItems: NavItem[] = [
