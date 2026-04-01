@@ -23,6 +23,8 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { Plus, Pencil, Eye, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import LeafletMap from '@/components/LeafletMap';
+import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
 
 const statusColors: Record<OperationStatus, string> = {
   1: 'bg-slate-100 text-slate-800',
@@ -250,6 +252,34 @@ const OperationsPage: React.FC = () => {
       return a.id.localeCompare(b.id);
     });
   }, [activityFilter, operations, sortColumn, sortDirection, statusFilter]);
+  const viewingRoutePoints: [number, number][] = useMemo(() => {
+    if (!viewing?.routeGeometry?.coordinates?.length) return [];
+    return viewing.routeGeometry.coordinates
+      .filter(
+        (pair): pair is [number, number] =>
+          Array.isArray(pair) &&
+          pair.length === 2 &&
+          Number.isFinite(pair[0]) &&
+          Number.isFinite(pair[1])
+      )
+      .map(([longitude, latitude]) => [latitude, longitude]);
+  }, [viewing]);
+  const viewingRouteMarkers: MapMarker[] = useMemo(() => {
+    if (viewingRoutePoints.length === 0) return [];
+    const [startLat, startLng] = viewingRoutePoints[0];
+    const [endLat, endLng] = viewingRoutePoints[viewingRoutePoints.length - 1];
+    return [
+      { id: 'start', lat: startLat, lng: startLng, popup: 'Start trasy', markerType: 'site' },
+      { id: 'end', lat: endLat, lng: endLng, popup: 'Koniec trasy', markerType: 'site' },
+    ];
+  }, [viewingRoutePoints]);
+  const viewingRoutePolylines: MapPolyline[] = useMemo(() => {
+    if (viewingRoutePoints.length < 2) return [];
+    return [{ positions: viewingRoutePoints, color: '#0f766e', weight: 4 }];
+  }, [viewingRoutePoints]);
+  const viewingRouteCenter: [number, number] = viewingRoutePoints.length > 0
+    ? viewingRoutePoints[0]
+    : [52.0, 19.0];
   const hasProjectCode = form.projectCode.trim().length > 0;
   const hasShortDescription = form.shortDescription.trim().length > 0;
 
@@ -679,6 +709,21 @@ const OperationsPage: React.FC = () => {
                     </ul>
                   )}
                 </div>
+              </div>
+              <div className="space-y-2 rounded-md border p-3">
+                <h3 className="text-sm font-semibold">Mapa trasy z KML</h3>
+                {viewingRoutePolylines.length > 0 ? (
+                  <LeafletMap
+                    center={viewingRouteCenter}
+                    zoom={8}
+                    markers={viewingRouteMarkers}
+                    polylines={viewingRoutePolylines}
+                    autoFitBounds
+                    className="h-[320px]"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Brak danych trasy do wyświetlenia na mapie.</p>
+                )}
               </div>
 
               <div className="space-y-2 rounded-md border p-3">
