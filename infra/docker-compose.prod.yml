@@ -1,9 +1,13 @@
 # Application stack: backend + static frontend (nginx serves SPA only, no /api proxy).
-# Edge nginx + certbot live in a separate repository; public traffic terminates there.
+# Edge nginx + certbot live in a separate repository; attach both stacks to the same
+# external Docker network (default name: internal-proxy).
 #
-# Ports bind to 127.0.0.1 only (not reachable from the public internet). On the host, edge nginx uses proxy_pass to:
-#   http://127.0.0.1:8080  — frontend
-#   http://127.0.0.1:8000  — API (FastAPI /api prefix)
+# No host port publishing — reachable only from containers on that network, e.g.:
+#   http://web:80       — frontend (nginx)
+#   http://backend:8000 — API (FastAPI /api prefix)
+#
+# Create the network once (shared with your edge / reverse-proxy compose):
+#   docker network create internal-proxy
 #
 # From repo root:
 #   docker compose -p aero-prod -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
@@ -22,8 +26,8 @@ services:
       - .env
     volumes:
       - backend_data:/app/data
-    ports:
-      - "127.0.0.1:8000:8000"
+    networks:
+      - edge
 
   web:
     build:
@@ -33,8 +37,13 @@ services:
         VITE_API_BASE_URL: /api
     container_name: aero_prod_web
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8080:80"
+    networks:
+      - edge
+
+networks:
+  edge:
+    name: internal-proxy
+    external: true
 
 volumes:
   backend_data:
