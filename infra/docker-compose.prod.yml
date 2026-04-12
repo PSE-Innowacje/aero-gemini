@@ -1,0 +1,40 @@
+# Application stack: backend + static frontend (nginx serves SPA only, no /api proxy).
+# Edge nginx + certbot live in a separate repository; public traffic terminates there.
+#
+# Ports bind to 127.0.0.1 only (not reachable from the public internet). On the host, edge nginx uses proxy_pass to:
+#   http://127.0.0.1:8080  — frontend
+#   http://127.0.0.1:8000  — API (FastAPI /api prefix)
+#
+# From repo root:
+#   docker compose -p aero-prod -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
+
+name: aero-prod
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      target: production
+    container_name: aero_prod_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - backend_data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  web:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: aero_prod_web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  backend_data:
