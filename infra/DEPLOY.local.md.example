@@ -1,0 +1,67 @@
+# VPS deployment (template)
+
+Copy this file to `infra/DEPLOY.local.md` (gitignored) and fill in your own values. **Do not commit** `DEPLOY.local.md`.
+
+This repository runs **backend + static frontend only** (nginx in the `web` image serves the SPA — **no** API reverse proxy and **no** certbot). **TLS and certbot** live in a separate repository; there you point `aero.draxnor.com` (or your domain) and `proxy_pass` to the ports below.
+
+## Requirements
+
+- VPS with Docker and Docker Compose v2
+- Application repo e.g. under `/opt/aero-gemini`
+- Edge configuration (nginx + certbot) on the same host or in a container
+
+## 1. DNS and firewall
+
+1. **A** / **AAAA** record for your domain → VPS public IP (handled by edge nginx from the other repo).
+2. Firewall: from the internet only edge ports should be open (usually **80** and **443**). Ports **8080** and **8000** in `docker-compose.prod.yml` bind to **127.0.0.1** — they are not exposed publicly.
+
+## 2. Environment configuration
+
+1. `cp infra/.env.example infra/.env`
+2. Set at least **`AERO_JWT_SECRET`**, **`AERO_DATABASE_URL`** (e.g. `sqlite:////app/data/aero.db` with volume `backend_data`).
+
+The frontend is built with **`VITE_API_BASE_URL=/api`** — the browser calls the API on the **same host as the page**; edge nginx must forward `/api` to the backend (e.g. `proxy_pass http://127.0.0.1:8000;` preserving URIs starting with `/api`).
+
+## 3. Starting the application stack
+
+From the **repository root**:
+
+```bash
+docker compose -p aero-prod -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
+```
+
+After startup (default `127.0.0.1` binding):
+
+| Service  | URL for edge nginx on the host |
+|----------|--------------------------------|
+| Frontend | `http://127.0.0.1:8080`        |
+| Backend  | `http://127.0.0.1:8000`        |
+
+Example snippets for **edge nginx** (adjust TLS file paths in your repo):
+
+- `location /api` → `proxy_pass http://127.0.0.1:8000;` plus headers `Host`, `X-Forwarded-For`, `X-Forwarded-Proto`.
+- `location /` → `proxy_pass http://127.0.0.1:8080;` (upstream is plain static nginx with `try_files`).
+
+### Edge nginx in Docker (instead of on the host)
+
+Then `127.0.0.1` inside the edge container is **not** the host. Options: **(a)** shared Docker network (`external: true`) and `proxy_pass http://web:80` / `http://backend:8000` — remove `ports` in `docker-compose.prod.yml` and define a named network you attach from the second compose; **(b)** on Linux, `extra_hosts: ["host.docker.internal:host-gateway"]` and proxy to `http://host.docker.internal:8080`, etc.
+
+## 4. TLS and certbot
+
+Do this **in the edge nginx repository** (webroot, reverse proxy, certificate renewal).
+
+## 5. Updating the application
+
+```bash
+cd YOUR_REPO_PATH
+git pull
+docker compose -p aero-prod -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
+```
+
+## 6. Database backup
+
+```bash
+docker run --rm -v aero-prod_backend_data:/data -v $(pwd):/backup alpine tar czf /backup/backend_data.tgz -C /data .
+```
+
+(`-p` must match the one used with `docker compose up`.)
