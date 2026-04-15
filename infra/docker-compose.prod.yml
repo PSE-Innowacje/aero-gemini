@@ -30,6 +30,11 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # Entrypoint runs as root: chown on /app/data + runuser to appuser need these after cap_drop ALL.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     read_only: true
     tmpfs:
       - /tmp:noexec,nosuid,nodev,size=64m

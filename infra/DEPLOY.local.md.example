@@ -54,7 +54,7 @@ docker compose -p aero-prod --env-file infra/.env -f infra/docker-compose.prod.y
   python seed.py
 ```
 
-The backend image entrypoint (`chown` on `/app/data`, then `runuser` as `appuser`) exists so SQLite on a Docker **named volume** is writable. If you still see `PermissionError` on `/app/data`, rebuild and restart the stack (`up -d --build`), then run Option B again.
+The backend image entrypoint (`chown` on `/app/data`, then `runuser` as `appuser`) exists so SQLite on a Docker **named volume** is writable. Compose grants `CHOWN`, `SETUID`, and `SETGID` for that entrypoint (they are dropped for everything else via `cap_drop: ALL`). If you still see `PermissionError` on `/app/data`, rebuild and restart the stack (`up -d --build`), then run Option B again.
 
 `SEED_PROFILE` in `infra/.env` may be `minimal` or `full` (default `full`). See `backend/seed.py` for seeded users and passwords.
 
