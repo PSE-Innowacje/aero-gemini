@@ -16,6 +16,7 @@ RUN npm run build
 # Non-root nginx (no CAP_NET_BIND_SERVICE); edge proxies to aero-web:8080.
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
+COPY nginx.main.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 

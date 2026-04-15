@@ -55,10 +55,10 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp:noexec,nosuid,nodev,size=32m
-      - /var/cache/nginx:noexec,nosuid,nodev,size=32m
-      - /var/run:noexec,nosuid,nodev,size=16m
-      - /var/log/nginx:noexec,nosuid,nodev,size=8m
+      # Writable by non-root nginx for pid file (default tmpfs is root-owned).
+      - /tmp:noexec,nosuid,nodev,size=32m,mode=1777
+      - /var/cache/nginx:noexec,nosuid,nodev,size=32m,mode=1777
+      - /var/run:noexec,nosuid,nodev,size=16m,mode=1777
     networks:
       - edge
 
