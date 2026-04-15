@@ -49,7 +49,7 @@ def update_landing_site(
     landing_site_id: int,
     payload: LandingSiteUpdate,
     db: Session = Depends(get_db),
-    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER, UserRole.SUPERVISOR)),
+    _=Depends(require_roles(UserRole.ADMIN, UserRole.PLANNER)),
 ) -> LandingSiteRead:
     repo = BaseRepository(db, LandingSite)
     model = repo.get(landing_site_id)

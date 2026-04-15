@@ -3,14 +3,14 @@
 # external Docker network (default name: internal-proxy).
 #
 # No host port publishing — reachable only from containers on that network, e.g.:
-#   http://aero-web:80       — frontend (nginx)
+#   http://aero-web:8080     — frontend (unprivileged nginx)
 #   http://aero-backend:8000 — API (FastAPI /api prefix)
 #
 # Create the network once (shared with your edge / reverse-proxy compose):
 #   docker network create internal-proxy
 #
 # From repo root:
-#   docker compose -p aero-prod -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
+#   docker compose -p aero-prod --env-file infra/.env -f infra/docker-compose.prod.yml up -d --build
 
 name: aero-prod
 
@@ -26,6 +26,13 @@ services:
       - .env
     volumes:
       - backend_data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=64m
     networks:
       - edge
 
@@ -37,6 +44,16 @@ services:
         VITE_API_BASE_URL: /api
     container_name: aero-web
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=32m
+      - /var/cache/nginx:noexec,nosuid,nodev,size=32m
+      - /var/run:noexec,nosuid,nodev,size=16m
+      - /var/log/nginx:noexec,nosuid,nodev,size=8m
     networks:
       - edge
 

@@ -50,17 +50,19 @@ ENV PORT=8000
 # It will already contain project/app as a package
 COPY --from=builder ${UV_PROJECT_ENVIRONMENT} ${UV_PROJECT_ENVIRONMENT}
 
-# Create a user and group
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+# Fixed UID/GID for reproducible ownership on named volumes (non-root at runtime after entrypoint).
+RUN groupadd -r -g 10001 appgroup && useradd -r -u 10001 -g appgroup appuser
 # Create /app directory and change its ownership so the non-root user can write files
 RUN mkdir -p /app && chown -R appuser:appgroup /app
 # Ensure correct permissions on /app (read, write, execute)
 RUN chmod -R 755 /app
 
-WORKDIR /app
+COPY infra/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-USER appuser
+WORKDIR /app
 
 EXPOSE ${PORT}
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["sh", "-c", "uvicorn aero.main:app --host 0.0.0.0 --port ${PORT}"]

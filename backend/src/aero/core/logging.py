@@ -8,6 +8,9 @@ from typing import Any
 from typing import ParamSpec, TypeVar, cast
 
 from loguru import logger
+from sqlalchemy.engine.url import make_url
+
+from aero.core.config import BACKEND_DIR, settings
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -20,13 +23,25 @@ def _patch_log_record(record: dict[str, Any]) -> None:
     extra["context"] = " ".join(context_parts) if context_parts else "-"
 
 
+def _resolve_logs_dir() -> Path:
+    if settings.log_dir is not None:
+        return settings.log_dir
+    url = make_url(settings.database_url)
+    if url.drivername == "sqlite" and url.database not in (None, ":memory:"):
+        db_str = url.database
+        db_path = Path(db_str)
+        # POSIX paths in URL (e.g. /app/data/aero.db) must count as absolute even on Windows hosts.
+        if db_path.is_absolute() or db_str.startswith("/"):
+            return db_path.parent / "logs"
+    return BACKEND_DIR / "logs"
+
+
 def configure_logging() -> None:
     """Configure console + file logging with non-blocking sinks."""
     logger.remove()
     logger.configure(patcher=_patch_log_record)
 
-    logs_dir = Path(__file__).resolve().parents[3] / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = _resolve_logs_dir()
     json_log_path = logs_dir / "app.jsonl"
 
     logger.add(
@@ -45,16 +60,26 @@ def configure_logging() -> None:
             "<magenta>{extra[context]}</magenta>\n"
         ),
     )
-    logger.add(
-        json_log_path,
-        level="DEBUG",
-        serialize=True,
-        enqueue=True,
-        backtrace=True,
-        diagnose=False,
-        rotation="10 MB",
-        retention=5,
-    )
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        test_file = logs_dir / ".write_check"
+        test_file.write_text("", encoding="utf-8")
+        test_file.unlink(missing_ok=True)
+    except OSError:
+        logger.bind(event="logging_config").warning(
+            "file_log_sink_skipped_logs_dir_not_writable",
+        )
+    else:
+        logger.add(
+            json_log_path,
+            level="DEBUG",
+            serialize=True,
+            enqueue=True,
+            backtrace=True,
+            diagnose=False,
+            rotation="10 MB",
+            retention=5,
+        )
 
 
 def log_duration(

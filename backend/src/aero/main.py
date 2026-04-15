@@ -53,7 +53,13 @@ async def request_observability_middleware(request: Request, call_next):
 
 def create_app() -> FastAPI:
     configure_logging()
-    app = FastAPI(title="Aero Backend", version="0.1.0")
+    app = FastAPI(
+        title="Aero Backend",
+        version="0.1.0",
+        docs_url="/docs" if settings.expose_openapi else None,
+        redoc_url="/redoc" if settings.expose_openapi else None,
+        openapi_url="/openapi.json" if settings.expose_openapi else None,
+    )
     logger.bind(event="app_bootstrap", app=app.title, version=app.version).info("application_created")
     if settings.jwt_secret == "dev-secret-change-me":
         logger.bind(event="security_configuration", config_key="jwt_secret").warning(
@@ -98,6 +104,8 @@ def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     # Lightweight schema evolution for local/dev SQLite DBs without Alembic.
     inspector = inspect(engine)
+    if "flight_orders" not in inspector.get_table_names():
+        return
     columns = {column["name"] for column in inspector.get_columns("flight_orders")}
     if "actual_distance" not in columns:
         with engine.begin() as connection:

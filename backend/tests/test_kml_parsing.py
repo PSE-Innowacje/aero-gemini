@@ -22,12 +22,12 @@ def test_parse_kml_coordinates_rejects_malformed_content() -> None:
 
 
 def test_normalize_route_reads_linestrings_from_nested_features() -> None:
-    # Coordinates are written as lon,lat[,alt], while distance expects (lat, lon).
+    # KML uses lon,lat[,alt]; geodesic expects (lat, lon). Points lie within Poland bounds.
     route_points_lat_lon: list[tuple[float, float]] = [
-        (37.0, -122.0),
-        (37.1, -122.1),
-        (37.25, -122.05),
-        (37.35, -121.95),
+        (52.0, 21.0),
+        (52.1, 21.1),
+        (52.25, 21.05),
+        (52.35, 21.02),
     ]
     kml_content = """<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -35,25 +35,28 @@ def test_normalize_route_reads_linestrings_from_nested_features() -> None:
     <Folder>
       <Placemark>
         <LineString>
-          <coordinates>-122.0000,37.0000,0 -122.1000,37.1000,0</coordinates>
+          <coordinates>21.0000,52.0000,0 21.1000,52.1000,0</coordinates>
         </LineString>
       </Placemark>
       <Placemark>
         <LineString>
-          <coordinates>-122.0500,37.2500,0 -121.9500,37.3500,0</coordinates>
+          <coordinates>21.0500,52.2500,0 21.0200,52.3500,0</coordinates>
         </LineString>
       </Placemark>
     </Folder>
   </Document>
 </kml>
 """
-    expected = round(sum(geodesic(a, b).kilometers for a, b in pairwise(route_points_lat_lon)), 2)
+    # Matches _distance_km(): int(round(total km))
+    expected = int(
+        round(sum(geodesic(a, b).kilometers for a, b in pairwise(route_points_lat_lon))),
+    )
     result = normalize_route(None, kml_content)
 
-    assert result["distance_km"] == pytest.approx(expected, abs=0.01)
+    assert result["distance_km"] == expected
     assert result["points_count"] == 4
     assert result["route_geometry"]["type"] == "LineString"
-    assert result["route_bbox"] == [-122.1, 37.0, -121.95, 37.35]
+    assert result["route_bbox"] == [21.0, 52.0, 21.1, 52.35]
 
 
 def test_route_start_end_is_computed_from_geometry() -> None:

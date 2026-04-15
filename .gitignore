@@ -2,3 +2,6 @@ manual_tests/
 
 # Local deploy notes (do not commit — template: infra/DEPLOY.local.md.example)
 infra/DEPLOY.local.md
+
+# Production / secrets (template: infra/.env.example)
+infra/.env

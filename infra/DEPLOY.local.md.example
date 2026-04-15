@@ -27,8 +27,36 @@ The frontend is built with **`VITE_API_BASE_URL=/api`** — the browser calls th
 From the **repository root**:
 
 ```bash
-docker compose -p aero-prod -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
+docker compose -p aero-prod --env-file infra/.env -f infra/docker-compose.prod.yml up -d --build
 ```
+
+### Seed database (`seed.py`)
+
+The API does **not** create users on startup. Run the seed once (idempotent) so demo accounts exist — from the **repository root**.
+
+Ready-made helpers (permission fix + seed + inspect): **`infra/scripts/`** (`fix-backend-volume-permissions.*`, `run-seed-in-docker.*`, `inspect-backend-data-permissions.sh`).
+
+**Option A — `uv` on the host** (same machine as the repo, same `AERO_DATABASE_URL` as in `infra/.env`; use when the DB file is reachable from the host, e.g. local SQLite path):
+
+```bash
+set -a && source infra/.env && set +a   # bash: load env
+uv run --directory backend python seed.py
+```
+
+**Option B — one-off backend container** (SQLite only inside the `backend_data` volume; run on the VPS from repo root after `docker compose up`):
+
+```bash
+docker compose -p aero-prod --env-file infra/.env -f infra/docker-compose.prod.yml run --rm \
+  -v aero-prod_backend_data:/app/data \
+  -v "$(pwd)/backend:/workspace/backend:ro" \
+  --workdir /workspace/backend \
+  aero-backend \
+  python seed.py
+```
+
+The backend image entrypoint (`chown` on `/app/data`, then `runuser` as `appuser`) exists so SQLite on a Docker **named volume** is writable. If you still see `PermissionError` on `/app/data`, rebuild and restart the stack (`up -d --build`), then run Option B again.
+
+`SEED_PROFILE` in `infra/.env` may be `minimal` or `full` (default `full`). See `backend/seed.py` for seeded users and passwords.
 
 After startup (default `127.0.0.1` binding):
 
@@ -40,11 +68,11 @@ After startup (default `127.0.0.1` binding):
 Example snippets for **edge nginx** (adjust TLS file paths in your repo):
 
 - `location /api` → `proxy_pass http://127.0.0.1:8000;` plus headers `Host`, `X-Forwarded-For`, `X-Forwarded-Proto`.
-- `location /` → `proxy_pass http://127.0.0.1:8080;` (upstream is plain static nginx with `try_files`).
+- `location /` → `proxy_pass http://127.0.0.1:8080;` (upstream is unprivileged nginx on **8080** inside the container — on a shared Docker network use `http://aero-web:8080` instead).
 
 ### Edge nginx in Docker (instead of on the host)
 
-Then `127.0.0.1` inside the edge container is **not** the host. Options: **(a)** shared Docker network (`external: true`) and `proxy_pass http://web:80` / `http://backend:8000` — remove `ports` in `docker-compose.prod.yml` and define a named network you attach from the second compose; **(b)** on Linux, `extra_hosts: ["host.docker.internal:host-gateway"]` and proxy to `http://host.docker.internal:8080`, etc.
+Then `127.0.0.1` inside the edge container is **not** the host. Options: **(a)** shared Docker network (`external: true`) and `proxy_pass http://aero-web:8080` / `http://aero-backend:8000` — attach both stacks to the same network (see `docker-compose.prod.yml`); **(b)** on Linux, `extra_hosts: ["host.docker.internal:host-gateway"]` and proxy to `http://host.docker.internal:8080`, etc.
 
 ## 4. TLS and certbot
 
@@ -55,7 +83,7 @@ Do this **in the edge nginx repository** (webroot, reverse proxy, certificate re
 ```bash
 cd YOUR_REPO_PATH
 git pull
-docker compose -p aero-prod -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
+docker compose -p aero-prod --env-file infra/.env -f infra/docker-compose.prod.yml up -d --build
 ```
 
 ## 6. Database backup
