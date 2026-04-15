@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Pencil, Eye, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Plus, Pencil, Eye, AlertTriangle, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Info } from 'lucide-react';
 import LeafletMap from '@/components/LeafletMap';
 import type { MapMarker, MapPolyline } from '@/components/LeafletMap';
 import {
@@ -331,7 +331,16 @@ const FlightOrdersPage: React.FC = () => {
     () => crew.find(c => c.role === 'PILOT' && user?.email && c.email === user.email)?.id ?? '',
     [crew, user?.email]
   );
-  const effectivePilotId = editing ? form.pilotId : (loggedPilotId || form.pilotId);
+  const showPilotSelect = user?.role === 'ADMIN' || (!!editing && user?.role !== 'PILOT');
+  const effectivePilotId = useMemo(() => {
+    if (editing && user?.role === 'PILOT') {
+      return loggedPilotId;
+    }
+    if (editing) {
+      return form.pilotId;
+    }
+    return loggedPilotId || form.pilotId;
+  }, [editing, user?.role, loggedPilotId, form.pilotId]);
 
   const openCreate = () => {
     setEditing(null);
@@ -371,6 +380,11 @@ const FlightOrdersPage: React.FC = () => {
     });
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (!open || !editing || user?.role !== 'PILOT' || !loggedPilotId) return;
+    setForm((f) => (f.pilotId === loggedPilotId ? f : { ...f, pilotId: loggedPilotId }));
+  }, [open, editing, user?.role, loggedPilotId]);
 
   const toggleMulti = (key: 'crewIds' | 'landingSiteIds' | 'operationIds', id: string) => {
     setForm(f => ({ ...f, [key]: f[key].includes(id) ? f[key].filter(x => x !== id) : [...f[key], id] }));
@@ -570,9 +584,11 @@ const FlightOrdersPage: React.FC = () => {
       return;
     }
     if (editing) {
+      const pilotId = user?.role === 'PILOT' ? loggedPilotId : form.pilotId;
       updateMut.mutate({
         id: editing.id,
         ...form,
+        pilotId,
         actualDistance: form.actualDistance.trim() === '' ? undefined : Number(form.actualDistance),
       });
     }
@@ -986,7 +1002,7 @@ const FlightOrdersPage: React.FC = () => {
               <p className="mt-1 text-xs text-muted-foreground">Dostepne sa tylko helikoptery ze statusem aktywny.</p>
             </div>
 
-            {(editing || user?.role === 'ADMIN') && (
+            {showPilotSelect && (
               <div>
                 <label className="text-sm font-medium text-foreground">Pilot</label>
                 <Select value={form.pilotId} onValueChange={v => setForm(f => ({ ...f, pilotId: v }))}>
@@ -1000,8 +1016,33 @@ const FlightOrdersPage: React.FC = () => {
                 <p className="mt-1 text-xs text-muted-foreground">Pilot musi miec role PILOT w slowniku zalogi.</p>
               </div>
             )}
+            {editing && user?.role === 'PILOT' && (
+              <div>
+                <label className="text-sm font-medium text-foreground">Pilot</label>
+                <div
+                  className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-foreground"
+                  aria-readonly="true"
+                >
+                  {loggedPilotId ? getPilotName(loggedPilotId) : '—'}
+                </div>
+                <p className="mt-1 flex gap-2 text-xs text-muted-foreground">
+                  <Info className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" aria-hidden />
+                  <span>
+                    Przy edycji pole <strong className="font-medium text-foreground">pilot</strong> jest zablokowane i zawsze wskazuje zalogowaną osobę.
+                  </span>
+                </p>
+              </div>
+            )}
             {!editing && user?.role !== 'ADMIN' && (
-              <p className="text-xs text-muted-foreground">Pilot jest uzupełniany automatycznie na podstawie zalogowanego użytkownika.</p>
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-foreground">Autouzupełnianie pilota</p>
+                <p className="flex gap-2 text-xs text-muted-foreground">
+                  <Info className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" aria-hidden />
+                  <span>
+                    Pole <strong className="font-medium text-foreground">pilot</strong> jest wypełniane automatycznie danymi aktualnie zalogowanej osoby.
+                  </span>
+                </p>
+              </div>
             )}
 
             <div>
